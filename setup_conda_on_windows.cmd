@@ -58,8 +58,10 @@ IF %ERRORLEVEL% NEQ 0 (
     GOTO :ConfigureFailure
 )
 
-bash -c "git clone https://github.com/pcdshub/ads-ioc/ '%WINDOWS_ADS_IOC_TOP%'/master || (cd '%WINDOWS_ADS_IOC_TOP%'/master && git pull origin master)"
-bash -c "git clone --single-branch --branch R0.2.4 '%WINDOWS_ADS_IOC_TOP%'/master '%WINDOWS_ADS_IOC_TOP%'/R0.2.4"
+@echo off
+REM ssh-agent must be setup on shell invoking this line.
+REM install ads-deploy from git bash( if you setup you ssh agent there):  cmd.exe /c setup_conda_on_windows.cmd
+bash --login -c "$(pwd)/ads_deploy/windows/add_on.sh '%WINDOWS_ADS_IOC_TOP%'"
 
 REM NOTE: bash -c "mkdir -p /reg/g/pcds/epics/ioc/common/ads-ioc"
 REM these paths are possible, but eventually are broken by how make mangles
