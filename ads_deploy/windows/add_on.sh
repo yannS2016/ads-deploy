@@ -1,5 +1,25 @@
 #!/bin/bash
-
+##############################################################################
+# add_on.sh
+#
+# - Ensures the active conda environment's Python executable is available as "python3"
+# - Clones or updates both the master and latest release branches of
+#   https://github.com/pcdshub/ioc-common-ads-ioc.git under the given WINDOWS_ADS_IOC_TOP
+# - Detects the latest GitHub release tag using curl/grep/sed (jq optional)
+# - Clones or updates the latest release branch in the repo directory
+# - Updates the first occurrence of "WINDOWS_ADS_IOC_TOP=" in conda_config.cmd,
+#
+# Usage:
+#     bash ads_deploy_update.sh <WINDOWS_ADS_IOC_TOP>
+#
+# Requirements:
+# - Bash (Git Bash, MSYS2, or compatible)
+# - Conda (Miniconda/Anaconda) properly installed with bash integration
+# - curl, git, awk, sed, grep (jq optional for improved tag parsing)
+#
+# Arguments:
+#   WINDOWS_ADS_IOC_TOP (string): Path under which master/latest branches will be stored locally.
+##############################################################################
 set -e
 export LC_ALL=C
 

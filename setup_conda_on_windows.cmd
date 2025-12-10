@@ -58,7 +58,6 @@ IF %ERRORLEVEL% NEQ 0 (
     GOTO :ConfigureFailure
 )
 
-@echo off
 REM ssh-agent must be setup on shell invoking this line.
 REM install ads-deploy from git bash( if you setup you ssh agent there):  cmd.exe /c setup_conda_on_windows.cmd
 bash --login -c "$(pwd)/ads_deploy/windows/add_on.sh '%WINDOWS_ADS_IOC_TOP%'"
