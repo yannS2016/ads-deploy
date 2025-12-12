@@ -10,7 +10,7 @@
 # - Updates the first occurrence of "WINDOWS_ADS_IOC_TOP=" in conda_config.cmd,
 #
 # Usage:
-#     bash ads_deploy_update.sh <WINDOWS_ADS_IOC_TOP>
+#     bash add_on.sh <WINDOWS_ADS_IOC_TOP>
 #
 # Requirements:
 # - Bash (Git Bash, MSYS2, or compatible)
@@ -28,8 +28,10 @@ die() { echo "ERROR: $*" >&2; exit 1; }
 SCRIPT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 WINDOWS_ADS_IOC_TOP="$1"
 
+# Source conda shell integration for Bash
 source /c/miniconda/etc/profile.d/conda.sh
 
+# Source config for environment name
 source "${SCRIPT_PATH}/conda_config.sh"
 conda activate $ADS_DEPLOY_CONDA_ENV
 
@@ -38,8 +40,8 @@ if [[ -z "$CONDA_ENV_PATH" ]]; then
     die "CONDA_PREFIX is not set. Please activate your conda env first!"
 fi
 
-# Find the correct Python binary inside the environment
-PYTHON="$(conda run -n $ADS_DEPLOY_CONDA_ENV which python 2>/dev/null || which python)"
+# Find python in the activated conda environment
+PYTHON="$(which python)"
 PYTHON_BASENAME="$(basename "$PYTHON")"
 
 if [[ -z "$PYTHON" || ! -f "$PYTHON" ]]; then
@@ -117,5 +119,3 @@ awk -v new_path="$LATEST_IOC_TOP" '
 
 mv "$TEMP_CONFIG" "$CONFIG_FILE"
 echo "Updated $CONFIG_FILE with WINDOWS_ADS_IOC_TOP=$LATEST_IOC_TOP"
-
-# echo "All steps complete."
