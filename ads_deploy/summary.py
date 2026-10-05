@@ -33,12 +33,13 @@ def build_arg_parser(parser=None):
 def main(solution: str) -> None:
     solution = vstools.resolve_solution(solution)
     env = vstools.tool_env("pytmc")
+    pytmc = vstools.resolve_executable("pytmc", env)
 
     output_path = solution.parent / f"{solution.stem}.summary.txt"
 
     with open(output_path, "w") as f:
         result = subprocess.run(
-            ["pytmc", "summary", "--all", "--code", "--markdown", str(solution)],
+            [pytmc, "summary", "--all", "--code", "--markdown", str(solution)],
             stdout=f, env=env,
         )
 

@@ -31,10 +31,11 @@ def build_arg_parser(parser=None):
 def main(solution: str) -> None:
     solution = vstools.resolve_solution(solution)
     env = vstools.tool_env("pytmc")
+    pytmc = vstools.resolve_executable("pytmc", env)
 
     _, projects = util.get_tsprojects_from_filename(solution)
 
     for project in projects:
-        subprocess.run(["pytmc", "debug", str(project)], env=env)
+        subprocess.run([pytmc, "debug", str(project)], env=env)
 
     logger.info("Done")

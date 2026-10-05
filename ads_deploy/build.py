@@ -63,7 +63,7 @@ def _build_one_ioc(ioc_dir: pathlib.Path, ads_ioc_location: pathlib.Path,
         shutil.rmtree(build_dir)
 
     args = [
-        "make",
+        vstools.resolve_executable("make", env),
         f"IOC_TOP={ads_ioc_location}/",
         f"TEMPLATE_PATH={ads_ioc_location}/iocBoot/templates",
     ]

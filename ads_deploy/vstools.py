@@ -55,6 +55,37 @@ def tool_env(*tool_specs: str) -> dict:
     return env
 
 
+def resolve_executable(name: str, env: dict) -> str:
+    """
+    Resolve ``name`` to an absolute path using ``env``'s ``PATH``, rather
+    than passing the bare name to ``subprocess.run`` and letting Windows
+    search for it itself.
+
+    Confirmed directly against a real failure: when ``subprocess.run`` is
+    given a bare command name (no path separators) together with a custom
+    ``env=``, Windows' ``CreateProcess`` does NOT use that env's ``PATH`` to
+    locate the executable -- the implicit search it performs uses the
+    *calling* process's own current ``PATH``, since the custom environment
+    only takes effect once the child process has actually started, not
+    during the search for what to launch. `tool_env()`'s whole point is
+    resolving pinned tool directories into a ``PATH`` that is NOT the
+    calling process's real one (that's what makes an un-PATH-extended
+    terminal able to call pinned tools at all) -- so a bare name resolved
+    only through that custom ``PATH`` must be turned into an absolute path
+    here first. Same underlying reason `ads_deploy/vssettings.py` resolves
+    `ads-deploy` via `shutil.which()` rather than relying on Visual Studio
+    to search PATH for it.
+    """
+    resolved = shutil.which(name, path=env.get("PATH"))
+    if resolved is None:
+        logger.warning(
+            "Could not resolve %r via the resolved tool PATH -- the "
+            "subprocess call below will likely fail to find it.", name,
+        )
+        return name
+    return resolved
+
+
 def find_shell(env: dict) -> str:
     """
     Locate a directory holding the *full* Git for Windows coreutils set

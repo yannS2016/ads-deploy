@@ -31,12 +31,13 @@ def build_arg_parser(parser=None):
 def main(solution: str) -> None:
     solution = vstools.resolve_solution(solution)
     env = vstools.tool_env("pytmc")
+    pytmc = vstools.resolve_executable("pytmc", env)
 
     _, projects = util.get_tsprojects_from_filename(solution)
 
     failed = False
     for project in projects:
-        result = subprocess.run(["pytmc", "pragmalint", str(project)], env=env)
+        result = subprocess.run([pytmc, "pragmalint", str(project)], env=env)
         if result.returncode != 0:
             failed = True
 
