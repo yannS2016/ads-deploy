@@ -1,14 +1,21 @@
 """
 `ads-deploy vssettings` generates a Visual Studio (TwinCAT XAE) external
-tools settings file. Every entry's Command is `ads-deploy` itself -- resolved
-via `PATH` globally, exactly like `git`/`uv`/`pixi` already are -- so there is
-no per-machine install-location path to template at all, unlike the old
-`external-tools.vssettings`, which hardcoded `C:\\Repos\\ads-deploy`.
+tools settings file. Every entry's Command is `ads-deploy`'s own resolved
+absolute path -- there is no per-machine install-LOCATION to hand-edit the
+way the old `external-tools.vssettings` needed (it hardcoded
+`C:\\Repos\\ads-deploy`), since this is computed fresh each time
+`ads-deploy vssettings` runs, via `shutil.which`.
+
+Visual Studio's "Command" field does NOT do a PATH search the way cmd.exe
+does -- confirmed directly: a bare `ads-deploy` (relying on PATH, same
+convention as typing `git` or `uv` at a shell) fails with "The command is
+not a valid executable." It needs the actual resolved path.
 """
 
 import argparse
 import logging
 import pathlib
+import shutil
 
 import jinja2
 
@@ -27,25 +34,45 @@ DEFAULT_OUTPUT = "external-tools.vssettings"
 # (see ads_deploy/vstools.py's resolve_solution docstring).
 SOLUTION_ARGS = "$(SolutionDir)$(SolutionFileName)"
 SOLUTION_INITIAL_DIR = "$(SolutionDir)"
-COMMAND = "ads-deploy"
 
-TOOLS = [
-    dict(command=COMMAND, title="&amp;1 Lint pragmas",
-         arguments=f"lint {SOLUTION_ARGS}", initial_directory=SOLUTION_INITIAL_DIR,
-         use_output_window=True, prompt_for_arguments=False),
-    dict(command=COMMAND, title="&amp;2 Configure and build IOC(s)",
-         arguments=f"build {SOLUTION_ARGS}", initial_directory=SOLUTION_INITIAL_DIR,
-         use_output_window=True, prompt_for_arguments=False),
-    dict(command=COMMAND, title="&amp;3 Record debugging",
-         arguments=f"debug {SOLUTION_ARGS}", initial_directory=SOLUTION_INITIAL_DIR,
-         use_output_window=False, prompt_for_arguments=False),
-    dict(command=COMMAND, title="&amp;4 Project summary",
-         arguments=f"summary {SOLUTION_ARGS}", initial_directory=SOLUTION_INITIAL_DIR,
-         use_output_window=False, prompt_for_arguments=False),
-    dict(command="designer", title="Qt Designer",
-         arguments="", initial_directory=SOLUTION_INITIAL_DIR,
-         use_output_window=False, prompt_for_arguments=False),
-]
+
+def _resolve_command(name: str) -> str:
+    """Resolve ``name`` to its full path via PATH; fall back to the bare
+    name (with a warning) if it can't be found, rather than failing
+    `vssettings` generation outright."""
+    found = shutil.which(name)
+    if found is None:
+        logger.warning(
+            "Could not resolve %r on PATH -- using the bare name, which "
+            "Visual Studio's External Tools will likely reject as "
+            "\"not a valid executable\". Make sure it's installed and on PATH.",
+            name,
+        )
+        return name
+    return found
+
+
+def _build_tools() -> list:
+    ads_deploy = _resolve_command("ads-deploy")
+    designer = _resolve_command("designer")
+
+    return [
+        dict(command=ads_deploy, title="&amp;1 Lint pragmas",
+             arguments=f"lint {SOLUTION_ARGS}", initial_directory=SOLUTION_INITIAL_DIR,
+             use_output_window=True, prompt_for_arguments=False),
+        dict(command=ads_deploy, title="&amp;2 Configure and build IOC(s)",
+             arguments=f"build {SOLUTION_ARGS}", initial_directory=SOLUTION_INITIAL_DIR,
+             use_output_window=True, prompt_for_arguments=False),
+        dict(command=ads_deploy, title="&amp;3 Record debugging",
+             arguments=f"debug {SOLUTION_ARGS}", initial_directory=SOLUTION_INITIAL_DIR,
+             use_output_window=False, prompt_for_arguments=False),
+        dict(command=ads_deploy, title="&amp;4 Project summary",
+             arguments=f"summary {SOLUTION_ARGS}", initial_directory=SOLUTION_INITIAL_DIR,
+             use_output_window=False, prompt_for_arguments=False),
+        dict(command=designer, title="Qt Designer",
+             arguments="", initial_directory=SOLUTION_INITIAL_DIR,
+             use_output_window=False, prompt_for_arguments=False),
+    ]
 
 
 def build_arg_parser(parser=None):
@@ -71,7 +98,7 @@ def main(output_path: str) -> None:
     env = jinja2.Environment(loader=loader, trim_blocks=True, lstrip_blocks=True)
     template = env.get_template("external-tools.vssettings.jinja2")
 
-    contents = template.render(tools=TOOLS)
+    contents = template.render(tools=_build_tools())
 
     output_path = pathlib.Path(output_path)
     output_path.write_text(contents)

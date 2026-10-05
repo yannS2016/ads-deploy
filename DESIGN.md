@@ -326,10 +326,16 @@ removes that whole caching/re-sourcing mechanism, not just its `.cmd` form:
 `fetch-ads-ioc` no longer has a `--write-config` flag, since nothing reads
 such a file any more.
 
-`ads_deploy/vssettings.py`'s `TOOLS` list now carries `command="ads-deploy"`
-(or `"designer"`) + `arguments` directly, instead of `script=...cmd` +
-`scripts_dir` templating -- there is no per-machine path to template any
-more, since `ads-deploy` resolves via `PATH` globally.
+`ads_deploy/vssettings.py`'s `TOOLS` list carries `command` + `arguments`
+directly, instead of `script=...cmd` + `scripts_dir` templating. `command`
+is `ads-deploy`'s (or `designer`'s) *resolved absolute path* via
+`shutil.which()`, computed fresh each time `ads-deploy vssettings` runs --
+**not** the bare string `"ads-deploy"`. Confirmed directly: Visual Studio's
+External Tools "Command" field does not do a `PATH` search the way
+`cmd.exe` does (a bare `ads-deploy` is rejected with "The command is not a
+valid executable"), so the file still needs regenerating per-machine, same
+as the old hardcoded-`C:\Repos\ads-deploy` file did -- just via one command
+(`ads-deploy vssettings`) instead of hand-editing XML.
 
 ## What was deleted this phase
 

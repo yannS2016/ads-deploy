@@ -54,12 +54,43 @@ Installation
    select the generated `external-tools.vssettings`. This adds the "External
    Tools" menu entries used against any open TwinCAT solution.
 
+Visual Studio's External Tools settings are per-user (confirmed: there's no
+"install once for every account" option), so step 4 is a per-user action
+regardless of how ads-deploy itself was installed. `external-tools.vssettings`
+also bakes in `ads-deploy`'s *resolved path* at generation time (Visual
+Studio's Command field does not do a PATH search the way `cmd.exe` does), so
+regenerate it (`ads-deploy vssettings`) on each machine rather than copying
+one machine's generated file to another.
+
+### Installing for all users on a shared machine
+
+By default, step 3 installs `ads-deploy` (and the pinned pytmc/make) under
+the *current user's own profile* (`uv tool install`'s own default) -- other
+accounts on the same machine won't see it. For a shared, all-users install,
+set `ADS_DEPLOY_SHARED_DIR` before running `bootstrap.cmd`, as an
+Administrator:
+```
+set ADS_DEPLOY_SHARED_DIR=C:\ProgramData\ads-deploy
+```
+This points `uv`'s own `UV_TOOL_DIR`/`UV_TOOL_BIN_DIR` at that shared
+location instead. `bootstrap.cmd` deliberately does **not** also rewrite the
+system `PATH` itself -- `setx /M PATH ...` has a hard 1024-character limit
+and silently *truncates* longer values, which can corrupt the whole
+machine's PATH. Instead it prints the one command to add the shared `bin`
+directory, for an admin to review and run themselves (a one-time step; once
+it's on the system PATH, every user's `ads-deploy`/`pytmc`/`make` just
+resolve). Each user still separately imports `external-tools.vssettings`
+(step 4) and can run `ads-deploy vssettings` themselves if their own Visual
+Studio needs it regenerated.
+
 VS "External Tools" workflow
 =============================
 
-Each menu entry calls `ads-deploy` directly (`Command=ads-deploy`) with a
-subcommand and the full solution path as **one** argument -- there is no
-`.cmd` wrapper script and no bash involved anywhere in this chain. The two
+Each menu entry calls `ads-deploy` directly (`Command` is `ads-deploy`'s
+resolved path, baked in by `ads-deploy vssettings` at generation time --
+Visual Studio doesn't search `PATH` for this field) with a subcommand and
+the full solution path as **one** argument -- there is no `.cmd` wrapper
+script and no bash involved anywhere in this chain. The two
 macros are concatenated with no space (`$(SolutionDir)$(SolutionFileName)`,
 not `$(SolutionDir) $(SolutionFileName)`) deliberately: `$(SolutionDir)`
 always ends in a backslash, and a quoted Windows argument ending in `\"` has
