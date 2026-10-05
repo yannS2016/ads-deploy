@@ -71,6 +71,7 @@ python = "*"
 # 3.12 (the previous approach here) -- it keeps working no matter which
 # Python pixi resolves in the future.
 setuptools = "*"
+{extra_pypi}\
 """
 
 
@@ -87,11 +88,13 @@ def _render_manifest(tool: str, version: str) -> str:
             version=clean_version,
         )
     elif source.ecosystem == "pypi":
+        extra_pypi = "".join(f'{dep} = "*"\n' for dep in source.extra_pypi)
         return _PYPI_MANIFEST.format(
             name=f"{tool}-{version}",
             platform=toolenv.pixi_platform(),
             package=source.package,
             version=clean_version,
+            extra_pypi=extra_pypi,
         )
     else:
         raise ValueError(f"Unknown ecosystem {source.ecosystem!r} for tool {tool!r}")

@@ -371,6 +371,36 @@ pre-commit` into the same `UV_TOOL_DIR`/`UV_TOOL_BIN_DIR` (shared, when
 anyone managing their own isolated dev venv -- but the shared `uv tool
 install` is the primary path for "just works for everyone on this machine."
 
+## `pytmc debug` needs a Qt binding, which plain `pip install pytmc` doesn't give it
+
+Confirmed directly on a real build: `ads-deploy debug` (the "Record
+debugging" External Tool) failed with `pytmc: error: argument
+{...}: invalid choice: 'debug'`, even though `pytmc/bin/debug.py` exists.
+`pytmc/bin/pytmc.py`'s own CLI dispatcher imports every module in its
+`MODULES` list and silently drops any that fail to import from the
+registered subcommands (no error surfaced at the top level -- only visible
+via `pytmc --help`'s "WARNING: pytmc 'debug' is unavailable" text, which
+`ads-deploy debug` never prints since it doesn't call `--help`).
+`debug.py` imports `qtpy`/`QtWidgets` -- it's a Qt GUI inspector for how
+pytmc interprets `.tmc` files, not a headless CLI command. A plain `pip
+install pytmc` has no Qt binding as a dependency at all; the old shared
+conda environment had one anyway, as a side effect of its much larger
+dependency set, which is why this worked before without anyone deciding it
+should.
+
+Fix: `tool_registry.py`'s `ToolSource` gained an `extra_pypi` field (a
+tuple of extra, unpinned PyPI deps, meaningful only for `ecosystem ==
+"pypi"` -- same pattern as `channel` being meaningful only for `"conda"`),
+and pytmc's registry entry sets `extra_pypi=("qtpy", "PySide6")`.
+`install.py`'s `_PYPI_MANIFEST` template renders these into the
+`[pypi-dependencies]` section. PySide6 over PyQt5/PyQt6 deliberately, to
+avoid a GPL dependency -- `qtpy` abstracts over either transparently, so
+nothing in pytmc's own code needed to change. The existing manifest-drift
+rebuild (`install()`'s `on_disk == manifest` check) picks this up
+automatically for anyone who already has pytmc installed -- no `--force`
+needed, just a normal `ads-deploy install pytmc/<version>` re-run (or the
+next `bootstrap.cmd`).
+
 ## Shared install: vssettings distribution, PATH, and permissions
 
 Three related decisions from reasoning through "how does an admin install
