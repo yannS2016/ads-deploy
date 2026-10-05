@@ -131,9 +131,38 @@ def find_shell(env: dict) -> str:
 
     bash = shutil.which("bash", path=env.get("PATH"))
     if bash is None:
+        # Confirmed directly: Visual Studio (devenv.exe), when launched
+        # before Git for Windows was installed or before its PATH entry was
+        # registered, keeps running with its OWN stale, already-loaded
+        # environment -- Windows never pushes PATH updates into an already
+        # running process. A CLI session opened fresh picks up the current
+        # PATH fine; a long-running VS instance silently doesn't, with no
+        # indication to the user beyond this warning. Rather than give up
+        # entirely, fall back to Git for Windows' well-known install
+        # locations (same kind of on-disk fallback toolenv.py already uses
+        # for the shared install, rather than relying purely on PATH/env
+        # state that may be stale) before telling the user to install it.
+        for root_var in ("ProgramFiles", "ProgramFiles(x86)"):
+            root = os.environ.get(root_var)
+            if root:
+                candidate = pathlib.Path(root) / "Git" / "bin" / "bash.exe"
+                if candidate.is_file():
+                    bash = str(candidate)
+                    break
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if bash is None and local_app_data:
+            candidate = pathlib.Path(local_app_data) / "Programs" / "Git" / "bin" / "bash.exe"
+            if candidate.is_file():
+                bash = str(candidate)
+
+    if bash is None:
         logger.warning(
-            "No bash found on PATH -- make's Makefile recipes may fail. "
-            "Install Git for Windows: https://git-scm.com/download/win"
+            "No bash found on PATH or Git for Windows' well-known install "
+            "locations -- make's Makefile recipes may fail. If Git for "
+            "Windows IS installed, this process (e.g. Visual Studio) may "
+            "have been started before its PATH entry was registered -- "
+            "try fully closing and reopening it. Otherwise, install Git "
+            "for Windows: https://git-scm.com/download/win"
         )
         return None
 
