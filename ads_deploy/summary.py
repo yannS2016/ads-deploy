@@ -24,8 +24,11 @@ def build_arg_parser(parser=None):
     parser.description = DESCRIPTION
     parser.formatter_class = argparse.RawTextHelpFormatter
 
-    parser.add_argument("solution", type=str,
-                         help="Full solution path, e.g. $(SolutionDir)$(SolutionFileName)")
+    parser.add_argument(
+        "solution",
+        type=str,
+        help="Full solution path, e.g. $(SolutionDir)$(SolutionFileName)",
+    )
 
     return parser
 
@@ -40,7 +43,8 @@ def main(solution: str) -> None:
     with open(output_path, "w") as f:
         result = subprocess.run(
             [pytmc, "summary", "--all", "--code", "--markdown", str(solution)],
-            stdout=f, env=env,
+            stdout=f,
+            env=env,
         )
 
     if result.returncode != 0 or not output_path.exists():

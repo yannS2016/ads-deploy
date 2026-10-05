@@ -8,9 +8,7 @@ import pytmc
 
 logger = logging.getLogger(__name__)
 
-ADS_IOC_LOCATION = pathlib.Path(
-    os.environ.get('ADS_IOC_LOCATION', r'C:\Repos\ads-ioc')
-)
+ADS_IOC_LOCATION = pathlib.Path(os.environ.get("ADS_IOC_LOCATION", r"C:\Repos\ads-ioc"))
 
 
 def parse_version_tag(name):
@@ -24,8 +22,8 @@ def parse_version_tag(name):
     always safe to compare/sort against another parsed tuple.
     """
     try:
-        version = name.lstrip('Rv').replace('-', '.')
-        parts = version.split('.')
+        version = name.lstrip("Rv").replace("-", ".")
+        parts = version.split(".")
         if parts and all(part.isdigit() for part in parts):
             return tuple(int(part) for part in parts)
     except Exception:
@@ -44,34 +42,35 @@ def get_latest_ads_ioc():
     """
     if not ADS_IOC_LOCATION.exists():
         raise RuntimeError(
-            f'ADS_IOC_LOCATION={ADS_IOC_LOCATION} does not exist.  Cannot '
-            'automatically find latest version of ads-ioc.'
+            f"ADS_IOC_LOCATION={ADS_IOC_LOCATION} does not exist.  Cannot "
+            "automatically find latest version of ads-ioc."
         )
 
-    if (ADS_IOC_LOCATION / 'iocBoot' / 'templates').exists():
+    if (ADS_IOC_LOCATION / "iocBoot" / "templates").exists():
         return ADS_IOC_LOCATION
 
     paths = {
-        parse_version_tag(path.name): path for path in ADS_IOC_LOCATION.iterdir()
+        parse_version_tag(path.name): path
+        for path in ADS_IOC_LOCATION.iterdir()
         if parse_version_tag(path.name) is not None
     }
 
     if not paths:
         raise RuntimeError(
-            f'No versions in ADS_IOC_LOCATION={ADS_IOC_LOCATION} were found. '
-            'Cannot automatically find latest version of ads-ioc.'
+            f"No versions in ADS_IOC_LOCATION={ADS_IOC_LOCATION} were found. "
+            "Cannot automatically find latest version of ads-ioc."
         )
 
     latest_version = paths[max(paths)]
-    if (latest_version / 'iocBoot' / 'templates').exists():
-        logger.info('Found latest ads-ioc: %s', latest_version)
+    if (latest_version / "iocBoot" / "templates").exists():
+        logger.info("Found latest ads-ioc: %s", latest_version)
         return latest_version
 
     raise RuntimeError(
-        f'The latest version in ADS_IOC_LOCATION={ADS_IOC_LOCATION} was '
-        f'determined to be {max(paths)} ({latest_version}), but there is no '
-        'corresponding Makefile.  Cannot automatically find latest version of '
-        'ads-ioc.'
+        f"The latest version in ADS_IOC_LOCATION={ADS_IOC_LOCATION} was "
+        f"determined to be {max(paths)} ({latest_version}), but there is no "
+        "corresponding Makefile.  Cannot automatically find latest version of "
+        "ads-ioc."
     )
 
 
@@ -89,43 +88,39 @@ def get_tsprojects_from_filename(filename):
         List of tsproj projects.
     """
     filename = pathlib.Path(filename).resolve()
-    if filename.suffix == '.tsproj':
+    if filename.suffix == ".tsproj":
         return filename.parent, [filename]
-    if filename.suffix == '.sln':
+    if filename.suffix == ".sln":
         return filename.parent, pytmc.parser.projects_from_solution(filename)
 
-    raise RuntimeError(f'Expected a .tsproj/.sln file; got {filename.suffix}')
+    raise RuntimeError(f"Expected a .tsproj/.sln file; got {filename.suffix}")
 
 
 def split_macros(macros):
     """Split user-provided macro strings into a dictionary."""
-    split = [macro.split('=', 1) for macro in macros]
+    split = [macro.split("=", 1) for macro in macros]
     return {var: value for var, value in split}
 
 
 def expand_macros(s, macros):
-    if '$' not in s:
+    if "$" not in s:
         return s
 
-    if '$(' in s:
+    if "$(" in s:
         # Replace $(...) with ${...} for string.Template
-        s = re.sub(r'\$\(([^)]+)\)', r'${\1}', s)
+        s = re.sub(r"\$\(([^)]+)\)", r"${\1}", s)
 
     try:
         return string.Template(s).substitute(macros)
     except KeyError:
-        raise ValueError(f'Unexpanded macro in string: {s}') from None
+        raise ValueError(f"Unexpanded macro in string: {s}") from None
 
 
 def should_filter(includes, excludes, values):
-    excluded = any(excl in value
-                   for excl in excludes
-                   for value in values
-                   )
+    excluded = any(excl in value for excl in excludes for value in values)
     if excluded:
         return False
 
-    return not len(includes) or any(incl in value
-                                    for incl in includes
-                                    for value in values
-                                    )
+    return not len(includes) or any(
+        incl in value for incl in includes for value in values
+    )

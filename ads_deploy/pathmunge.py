@@ -93,7 +93,7 @@ def build_arg_parser(parser=None):
         type=str,
         nargs="+",
         help="One or more tool names, optionally with a pinned version "
-             "(e.g. pytmc/v2.22.2 make)",
+        "(e.g. pytmc/v2.22.2 make)",
     )
     parser.add_argument(
         "--emit",

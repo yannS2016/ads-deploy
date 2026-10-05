@@ -28,7 +28,9 @@ def _run(*args, **kwargs):
     return subprocess.run(*args, check=True, **kwargs)
 
 
-def _clone_or_update(directory: pathlib.Path, ref: str, single_branch: bool = False) -> None:
+def _clone_or_update(
+    directory: pathlib.Path, ref: str, single_branch: bool = False
+) -> None:
     if (directory / ".git").exists():
         _run(["git", "-c", "advice.detachedHead=false", "checkout", ref], cwd=directory)
         _run(["git", "pull", "origin", ref], cwd=directory)
@@ -51,7 +53,9 @@ def get_latest_release_tag() -> str:
     """
     result = subprocess.run(
         ["git", "ls-remote", "--tags", "--refs", REPO_URL],
-        check=True, capture_output=True, text=True,
+        check=True,
+        capture_output=True,
+        text=True,
     )
     tags = [
         line.rsplit("refs/tags/", 1)[-1]
@@ -59,7 +63,8 @@ def get_latest_release_tag() -> str:
         if line.strip()
     ]
     versioned = {
-        tag: parse_version_tag(tag) for tag in tags
+        tag: parse_version_tag(tag)
+        for tag in tags
         if parse_version_tag(tag) is not None
     }
     if not versioned:

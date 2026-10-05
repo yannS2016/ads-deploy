@@ -59,6 +59,7 @@ def pixi_platform() -> str:
         return "win-64"
     if sys.platform == "darwin":
         import platform
+
         return "osx-arm64" if platform.machine() == "arm64" else "osx-64"
     return "linux-64"
 
@@ -180,7 +181,10 @@ def resolve_pinned_version(tool: str, search_from: pathlib.Path) -> str:
     if latest is not None:
         logger.info(
             "No %s pin found above %s; using latest installed %s version: %s",
-            PIN_FILENAME, search_from, tool, latest,
+            PIN_FILENAME,
+            search_from,
+            tool,
+            latest,
         )
         return latest
 

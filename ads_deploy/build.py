@@ -43,14 +43,18 @@ def build_arg_parser(parser=None):
     parser.description = DESCRIPTION
     parser.formatter_class = argparse.RawTextHelpFormatter
 
-    parser.add_argument("solution", type=str,
-                         help="Full solution path, e.g. $(SolutionDir)$(SolutionFileName)")
+    parser.add_argument(
+        "solution",
+        type=str,
+        help="Full solution path, e.g. $(SolutionDir)$(SolutionFileName)",
+    )
 
     return parser
 
 
-def _build_one_ioc(ioc_dir: pathlib.Path, ads_ioc_location: pathlib.Path,
-                    env: dict, shell: str) -> bool:
+def _build_one_ioc(
+    ioc_dir: pathlib.Path, ads_ioc_location: pathlib.Path, env: dict, shell: str
+) -> bool:
     """Build a single generated IOC directory. Returns True on success."""
     if not (ioc_dir / "Makefile").exists():
         return True
@@ -81,8 +85,9 @@ def main(solution: str) -> None:
 
     logger.info("Creating IOC boot directories and Makefiles")
     with open(solution, "rt", encoding="utf-8") as project_file:
-        iocboot.main(project=project_file, ioc_template_path=None,
-                     destination=str(iocboot_dir))
+        iocboot.main(
+            project=project_file, ioc_template_path=None, destination=str(iocboot_dir)
+        )
 
     logger.info("Attempting to build the IOC")
     ads_ioc_location = util.get_latest_ads_ioc()

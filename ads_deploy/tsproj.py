@@ -21,14 +21,14 @@ def build_arg_parser(parser=None):
     parser.formatter_class = argparse.RawTextHelpFormatter
 
     parser.add_argument(
-        'project', metavar="INPUT",
-        type=argparse.FileType('rt', encoding='utf-8'),
-        help='Path to the solution (.sln) or project (.tsproj) file'
+        "project",
+        metavar="INPUT",
+        type=argparse.FileType("rt", encoding="utf-8"),
+        help="Path to the solution (.sln) or project (.tsproj) file",
     )
 
     parser.add_argument(
-        '--relative', action='store_true',
-        help='Print paths relative to the solution'
+        "--relative", action="store_true", help="Print paths relative to the solution"
     )
 
     return parser

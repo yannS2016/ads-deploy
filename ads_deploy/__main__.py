@@ -15,25 +15,25 @@ DESCRIPTION = __doc__
 
 
 MODULES = {
-    'config': 'config',
-    'iocboot': 'iocboot',
-    'tsproj': 'tsproj',
-    'docs': 'docs',
-    'install': 'install',
-    'pathmunge': 'pathmunge',
-    'versions': 'versions',
-    'fetch_ads_ioc': 'fetch-ads-ioc',
-    'vssettings': 'vssettings',
-    'lint': 'lint',
-    'build': 'build',
-    'debug': 'debug',
-    'summary': 'summary',
+    "config": "config",
+    "iocboot": "iocboot",
+    "tsproj": "tsproj",
+    "docs": "docs",
+    "install": "install",
+    "pathmunge": "pathmunge",
+    "versions": "versions",
+    "fetch_ads_ioc": "fetch-ads-ioc",
+    "vssettings": "vssettings",
+    "lint": "lint",
+    "build": "build",
+    "debug": "debug",
+    "summary": "summary",
 }
 
 
 def _try_import(module):
-    relative_module = f'.{module}'
-    return importlib.import_module(relative_module, 'ads_deploy')
+    relative_module = f".{module}"
+    return importlib.import_module(relative_module, "ads_deploy")
 
 
 def _build_commands():
@@ -48,15 +48,15 @@ def _build_commands():
             unavailable.append((command, ex))
         else:
             result[command] = (mod.build_arg_parser, mod.main)
-            DESCRIPTION += f'\n    $ ads-deploy {command} --help'
+            DESCRIPTION += f"\n    $ ads-deploy {command} --help"
 
     if unavailable:
-        DESCRIPTION += '\n'
+        DESCRIPTION += "\n"
 
         for command, ex in unavailable:
             DESCRIPTION += (
                 f'\nWARNING: "ads-deploy {command}" is unavailable due to:'
-                f'\n\t{ex.__class__.__name__}: {ex}'
+                f"\n\t{ex.__class__.__name__}: {ex}"
             )
 
     return result
@@ -67,26 +67,29 @@ COMMANDS = _build_commands()
 
 def main():
     top_parser = argparse.ArgumentParser(
-        prog='ads-deploy',
+        prog="ads-deploy",
         description=DESCRIPTION,
-        formatter_class=argparse.RawTextHelpFormatter
+        formatter_class=argparse.RawTextHelpFormatter,
     )
 
     top_parser.add_argument(
-        '--version', '-V',
-        action='version',
+        "--version",
+        "-V",
+        action="version",
         version=ads_deploy.__version__,
-        help="Show the ads-deploy version number and exit."
+        help="Show the ads-deploy version number and exit.",
     )
 
     top_parser.add_argument(
-        '--log', '-l', dest='log_level',
-        default='INFO',
+        "--log",
+        "-l",
+        dest="log_level",
+        default="INFO",
         type=str,
-        help='Python logging level (e.g. DEBUG, INFO, WARNING)'
+        help="Python logging level (e.g. DEBUG, INFO, WARNING)",
     )
 
-    subparsers = top_parser.add_subparsers(help='Possible subcommands')
+    subparsers = top_parser.add_subparsers(help="Possible subcommands")
     for command_name, (build_func, main) in COMMANDS.items():
         sub = subparsers.add_parser(command_name)
         build_func(sub)
@@ -94,19 +97,19 @@ def main():
 
     args = top_parser.parse_args()
     kwargs = vars(args)
-    log_level = kwargs.pop('log_level')
+    log_level = kwargs.pop("log_level")
 
-    logger = logging.getLogger('ads_deploy')
+    logger = logging.getLogger("ads_deploy")
     logger.setLevel(log_level)
     logging.basicConfig()
 
-    if hasattr(args, 'func'):
-        func = kwargs.pop('func')
-        logger.debug('%s(**%r)', func.__name__, kwargs)
+    if hasattr(args, "func"):
+        func = kwargs.pop("func")
+        logger.debug("%s(**%r)", func.__name__, kwargs)
         func(**kwargs)
     else:
         top_parser.print_help()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

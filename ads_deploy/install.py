@@ -137,7 +137,9 @@ def _resolve_latest_version(tool: str) -> str:
                 raise ValueError(f"No numeric versions found for {source.package!r}")
             raw_version = max(parsed, key=parsed.get)
         else:
-            raise ValueError(f"Unknown ecosystem {source.ecosystem!r} for tool {tool!r}")
+            raise ValueError(
+                f"Unknown ecosystem {source.ecosystem!r} for tool {tool!r}"
+            )
     except (urllib.error.URLError, KeyError, ValueError, TimeoutError) as ex:
         raise RuntimeError(
             f"Could not resolve the latest upstream version of {tool!r} "
@@ -186,8 +188,11 @@ def _ensure_python3_shim(project) -> None:
         logger.info("python3.exe already present at %s", python3_exe)
     elif python_exe.is_file():
         shutil.copy2(python_exe, python3_exe)
-        logger.info("Copied %s -> %s (ads-ioc's Makefile.base expects python3)",
-                    python_exe, python3_exe)
+        logger.info(
+            "Copied %s -> %s (ads-ioc's Makefile.base expects python3)",
+            python_exe,
+            python3_exe,
+        )
     else:
         logger.info(
             "No python.exe found at %s; this environment has no Python to "
@@ -210,7 +215,9 @@ def _committed_lock_path(tool: str, version: str) -> pathlib.Path:
     return MODULE_PATH / "lockfiles" / tool / version / "pixi.lock"
 
 
-def install(tool: str, version: str, force: bool = False, save_lock: bool = False) -> None:
+def install(
+    tool: str, version: str, force: bool = False, save_lock: bool = False
+) -> None:
     """Create the isolated pixi environment for ``tool==version`` if it doesn't exist."""
     project = toolenv.project_dir(tool, version)
     manifest = _render_manifest(tool, version)
@@ -233,14 +240,18 @@ def install(tool: str, version: str, force: bool = False, save_lock: bool = Fals
                 "than what ads-deploy would generate now (e.g. an earlier "
                 "ads-deploy version pinned a different Python, or the "
                 "registry entry changed) -- rebuilding it.",
-                tool, version, project,
+                tool,
+                version,
+                project,
             )
         else:
             logger.warning(
                 "%s/%s exists at %s but isn't a valid pixi environment "
                 "(stale pre-pixi install, or a previous install was "
                 "interrupted) -- rebuilding it.",
-                tool, version, project,
+                tool,
+                version,
+                project,
             )
 
     if project.exists():
@@ -255,13 +266,17 @@ def install(tool: str, version: str, force: bool = False, save_lock: bool = Fals
         # Always a fresh resolve when (re)generating a lock to commit --
         # never trust a possibly-stale previously-committed one here, that
         # would defeat the point of regenerating it.
-        logger.info("Resolving %s/%s fresh via pixi at %s (--save-lock)", tool, version, project)
+        logger.info(
+            "Resolving %s/%s fresh via pixi at %s (--save-lock)", tool, version, project
+        )
     elif committed_lock.is_file():
         shutil.copy2(committed_lock, project / "pixi.lock")
         pixi_args.append("--locked")
         logger.info(
             "Installing %s/%s from the committed pixi.lock at %s (strict, --locked)",
-            tool, version, committed_lock,
+            tool,
+            version,
+            committed_lock,
         )
     else:
         logger.warning(
@@ -269,9 +284,14 @@ def install(tool: str, version: str, force: bool = False, save_lock: bool = Fals
             "transitive dependencies fresh and is NOT guaranteed bit-for-bit "
             "reproducible across machines. Run `ads-deploy install %s/%s "
             "--save-lock` from an ads-deploy git checkout to fix that.",
-            tool, version, tool, version,
+            tool,
+            version,
+            tool,
+            version,
         )
-        logger.info("Resolving and installing %s/%s via pixi at %s", tool, version, project)
+        logger.info(
+            "Resolving and installing %s/%s via pixi at %s", tool, version, project
+        )
 
     try:
         subprocess.run(pixi_args, check=True)
@@ -294,8 +314,11 @@ def install(tool: str, version: str, force: bool = False, save_lock: bool = Fals
             shutil.copy2(generated_lock, committed_lock)
             logger.info(
                 "Saved %s -- commit it: git add %s && git commit -m "
-                "\"Add/update pixi.lock for %s/%s\"",
-                committed_lock, committed_lock, tool, version,
+                '"Add/update pixi.lock for %s/%s"',
+                committed_lock,
+                committed_lock,
+                tool,
+                version,
             )
         else:
             logger.warning(
@@ -318,12 +341,12 @@ def build_arg_parser(parser=None):
         nargs="?",
         default=None,
         help="Tool and pinned version, e.g. pytmc/v2.22.2 or make/4.4.1. "
-             "The version may be omitted (e.g. just `pytmc`) to install "
-             "whatever's latest upstream right now -- a convenience for "
-             "getting started, not a substitute for pinning a real "
-             "deployment. If TOOL/VERSION is omitted entirely, installs "
-             f"every entry in a {toolenv.PIN_FILENAME}'s [tool-versions] "
-             "table (found by walking up from the current directory).",
+        "The version may be omitted (e.g. just `pytmc`) to install "
+        "whatever's latest upstream right now -- a convenience for "
+        "getting started, not a substitute for pinning a real "
+        "deployment. If TOOL/VERSION is omitted entirely, installs "
+        f"every entry in a {toolenv.PIN_FILENAME}'s [tool-versions] "
+        "table (found by walking up from the current directory).",
     )
     parser.add_argument(
         "--force",
@@ -334,14 +357,14 @@ def build_arg_parser(parser=None):
         "--save-lock",
         action="store_true",
         help="Resolve fresh and save the resulting pixi.lock to "
-             "ads_deploy/lockfiles/<tool>/<version>/, for committing. "
-             "Maintainer-only: run this from an actual ads-deploy git "
-             "checkout (e.g. `uv run python -m ads_deploy install "
-             "<tool>/<version> --save-lock`), not the shared/production "
-             "install -- that copy lives in site-packages, not anywhere "
-             "git tracks. Only needs to be run once per tool/version to "
-             "pin; every later install of that exact tool/version then "
-             "automatically uses the committed lock, no flag needed.",
+        "ads_deploy/lockfiles/<tool>/<version>/, for committing. "
+        "Maintainer-only: run this from an actual ads-deploy git "
+        "checkout (e.g. `uv run python -m ads_deploy install "
+        "<tool>/<version> --save-lock`), not the shared/production "
+        "install -- that copy lives in site-packages, not anywhere "
+        "git tracks. Only needs to be run once per tool/version to "
+        "pin; every later install of that exact tool/version then "
+        "automatically uses the committed lock, no flag needed.",
     )
 
     return parser

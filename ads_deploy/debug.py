@@ -22,8 +22,11 @@ def build_arg_parser(parser=None):
     parser.description = DESCRIPTION
     parser.formatter_class = argparse.RawTextHelpFormatter
 
-    parser.add_argument("solution", type=str,
-                         help="Full solution path, e.g. $(SolutionDir)$(SolutionFileName)")
+    parser.add_argument(
+        "solution",
+        type=str,
+        help="Full solution path, e.g. $(SolutionDir)$(SolutionFileName)",
+    )
 
     return parser
 

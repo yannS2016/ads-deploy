@@ -40,7 +40,10 @@ REGISTRY = {
     # that, deliberately, for this one tool. PySide6 (not PyQt5/6) to avoid
     # GPL licensing -- qtpy supports either as a backend transparently.
     "pytmc": ToolSource(
-        ecosystem="pypi", package="pytmc", extra_pypi=("qtpy", "PySide6"), version_prefix="v",
+        ecosystem="pypi",
+        package="pytmc",
+        extra_pypi=("qtpy", "PySide6"),
+        version_prefix="v",
     ),
     "make": ToolSource(ecosystem="conda", package="make"),
 }

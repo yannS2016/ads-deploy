@@ -25,8 +25,12 @@ from pytmc import RecordPackage
 from pytmc import parser as pytmc_parser
 from pytmc.bin.template import get_boxes
 from pytmc.bin.template import get_jinja_filters as get_pytmc_jinja_filters
-from pytmc.bin.template import (get_linter_results, get_plc_record_packages,
-                                get_render_context, helpers)
+from pytmc.bin.template import (
+    get_linter_results,
+    get_plc_record_packages,
+    get_render_context,
+    helpers,
+)
 
 from . import util
 
@@ -75,8 +79,7 @@ def build_arg_parser(parser=None):
     )
 
     parser.add_argument(
-        "--dry-run", action="store_true",
-        help="Dry-run only - do not write files"
+        "--dry-run", action="store_true", help="Dry-run only - do not write files"
     )
 
     parser.add_argument(
@@ -95,7 +98,7 @@ def build_template_kwargs(
     projects: List[pathlib.Path],
     *,
     plcs: Optional[List[str]] = None,
-    dbd: Optional[str] = None
+    dbd: Optional[str] = None,
 ) -> dict:
     """
     Get the top-level template rendering context dictionary.
@@ -129,10 +132,7 @@ def build_template_kwargs(
     for tsproj_project in projects:
         parsed_tsproj = pytmc.parser.parse(tsproj_project)
 
-        box_by_id = {
-            int(box.attributes["Id"]): box
-            for box in get_boxes(parsed_tsproj)
-        }
+        box_by_id = {int(box.attributes["Id"]): box for box in get_boxes(parsed_tsproj)}
         proj_info = dict(
             directory=tsproj_project.parent,
             name=tsproj_project.stem,
@@ -210,12 +210,8 @@ def get_jinja_environment(
 
 def get_jinja_filename_environment(templates) -> jinja2.Environment:
     """Environment for expanding filename templates."""
-    loader = jinja2.DictLoader(
-        {template.name: template.name for template in templates}
-    )
-    return jinja2.Environment(
-        loader=loader, trim_blocks=True, lstrip_blocks=True
-    )
+    loader = jinja2.DictLoader({template.name: template.name for template in templates})
+    return jinja2.Environment(loader=loader, trim_blocks=True, lstrip_blocks=True)
 
 
 def get_jinja_filters() -> Dict[str, Callable]:
@@ -241,16 +237,9 @@ def get_jinja_filters() -> Dict[str, Callable]:
                     for source_name in source_dict:
                         regex = re.compile(rf"\b{source_name}\b")
                         name_cache[regex] = source_name
-        related = set(
-            name
-            for regex, name in name_cache.items()
-            if regex.search(text)
-        )
+        related = set(name for regex, name in name_cache.items() if regex.search(text))
 
-        return [
-            f"`{name}`_" for name in sorted(related)
-            if name != source_name
-        ]
+        return [f"`{name}`_" for name in sorted(related) if name != source_name]
 
     filters = get_pytmc_jinja_filters()
     filters.update(
@@ -263,11 +252,7 @@ def get_jinja_filters() -> Dict[str, Callable]:
     return filters
 
 
-def render_template(
-    env: jinja2.Environment,
-    template: str,
-    context: dict
-) -> str:
+def render_template(env: jinja2.Environment, template: str, context: dict) -> str:
     """
     Render a template given the jinja environment.
     """
@@ -276,40 +261,41 @@ def render_template(
 
 def get_simple_library_versions(plc: pytmc_parser.Plc) -> List[dict]:
     """Get library versions."""
-    if 'DefaultResolution' not in pytmc_parser.TWINCAT_TYPES:
+    if "DefaultResolution" not in pytmc_parser.TWINCAT_TYPES:
         return []
 
     def parse_library(text, version_key):
-        library_name, version_and_vendor = text.split(', ')
-        version, vendor = version_and_vendor.split('(')
-        vendor = vendor.rstrip(')')
+        library_name, version_and_vendor = text.split(", ")
+        version, vendor = version_and_vendor.split("(")
+        vendor = vendor.rstrip(")")
         version = version.strip()
 
-        if version == '*':
-            version = 'Unset'
+        if version == "*":
+            version = "Unset"
 
         return (
             library_name,
-            {'name': library_name,
-             'vendor': vendor,
-             version_key: version,
-             },
+            {
+                "name": library_name,
+                "vendor": vendor,
+                version_key: version,
+            },
         )
 
     libraries = dict(
-        parse_library(lib.text, version_key='default')
-        for lib in plc.find(pytmc_parser.TWINCAT_TYPES['DefaultResolution'])
+        parse_library(lib.text, version_key="default")
+        for lib in plc.find(pytmc_parser.TWINCAT_TYPES["DefaultResolution"])
     )
     resolved = dict(
-        parse_library(lib.text, version_key='version')
-        for lib in plc.find(pytmc_parser.TWINCAT_TYPES['Resolution'])
+        parse_library(lib.text, version_key="version")
+        for lib in plc.find(pytmc_parser.TWINCAT_TYPES["Resolution"])
     )
 
     for name, info in resolved.items():
         if name not in libraries:
             libraries[name] = info
         else:
-            libraries[name]['version'] = info['version']
+            libraries[name]["version"] = info["version"]
 
     return list(libraries.values())
 
@@ -325,14 +311,12 @@ def main(
     plcs: Optional[List[str]] = None,
     templates: Optional[List[pathlib.Path]] = None,
     dbd: Optional[str] = None,
-    dry_run: bool = False
+    dry_run: bool = False,
 ) -> None:
     """
     ``ads-deploy docs`` entrypoint.
     """
-    templates = [
-        pathlib.Path(item) for item in (templates or DEFAULT_TEMPLATES)
-    ]
+    templates = [pathlib.Path(item) for item in (templates or DEFAULT_TEMPLATES)]
 
     if not templates:
         raise ValueError("No templates provided.")

@@ -46,7 +46,7 @@ def _resolve_command(name: str) -> str:
         logger.warning(
             "Could not resolve %r on PATH -- using the bare name, which "
             "Visual Studio's External Tools will likely reject as "
-            "\"not a valid executable\". Make sure it's installed and on PATH.",
+            '"not a valid executable". Make sure it\'s installed and on PATH.',
             name,
         )
         return name
@@ -69,21 +69,46 @@ def _build_tools() -> list:
     designer = _resolve_command("designer")
 
     return [
-        dict(command=ads_deploy, title="&amp;1 Lint pragmas",
-             arguments=f"lint {SOLUTION_ARGS}", initial_directory=SOLUTION_INITIAL_DIR,
-             use_output_window=True, prompt_for_arguments=False),
-        dict(command=ads_deploy, title="&amp;2 Configure and build IOC(s)",
-             arguments=f"build {SOLUTION_ARGS}", initial_directory=SOLUTION_INITIAL_DIR,
-             use_output_window=True, prompt_for_arguments=False),
-        dict(command=ads_deploy, title="&amp;3 Record debugging",
-             arguments=f"debug {SOLUTION_ARGS}", initial_directory=SOLUTION_INITIAL_DIR,
-             use_output_window=False, prompt_for_arguments=False),
-        dict(command=ads_deploy, title="&amp;4 Project summary",
-             arguments=f"summary {SOLUTION_ARGS}", initial_directory=SOLUTION_INITIAL_DIR,
-             use_output_window=False, prompt_for_arguments=False),
-        dict(command=designer, title="Qt Designer",
-             arguments="", initial_directory=SOLUTION_INITIAL_DIR,
-             use_output_window=False, prompt_for_arguments=False),
+        dict(
+            command=ads_deploy,
+            title="&amp;1 Lint pragmas",
+            arguments=f"lint {SOLUTION_ARGS}",
+            initial_directory=SOLUTION_INITIAL_DIR,
+            use_output_window=True,
+            prompt_for_arguments=False,
+        ),
+        dict(
+            command=ads_deploy,
+            title="&amp;2 Configure and build IOC(s)",
+            arguments=f"build {SOLUTION_ARGS}",
+            initial_directory=SOLUTION_INITIAL_DIR,
+            use_output_window=True,
+            prompt_for_arguments=False,
+        ),
+        dict(
+            command=ads_deploy,
+            title="&amp;3 Record debugging",
+            arguments=f"debug {SOLUTION_ARGS}",
+            initial_directory=SOLUTION_INITIAL_DIR,
+            use_output_window=False,
+            prompt_for_arguments=False,
+        ),
+        dict(
+            command=ads_deploy,
+            title="&amp;4 Project summary",
+            arguments=f"summary {SOLUTION_ARGS}",
+            initial_directory=SOLUTION_INITIAL_DIR,
+            use_output_window=False,
+            prompt_for_arguments=False,
+        ),
+        dict(
+            command=designer,
+            title="Qt Designer",
+            arguments="",
+            initial_directory=SOLUTION_INITIAL_DIR,
+            use_output_window=False,
+            prompt_for_arguments=False,
+        ),
     ]
 
 

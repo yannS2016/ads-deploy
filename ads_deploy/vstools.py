@@ -80,7 +80,8 @@ def resolve_executable(name: str, env: dict) -> str:
     if resolved is None:
         logger.warning(
             "Could not resolve %r via the resolved tool PATH -- the "
-            "subprocess call below will likely fail to find it.", name,
+            "subprocess call below will likely fail to find it.",
+            name,
         )
         return name
     return resolved
@@ -151,7 +152,9 @@ def find_shell(env: dict) -> str:
                     break
         local_app_data = os.environ.get("LOCALAPPDATA")
         if bash is None and local_app_data:
-            candidate = pathlib.Path(local_app_data) / "Programs" / "Git" / "bin" / "bash.exe"
+            candidate = (
+                pathlib.Path(local_app_data) / "Programs" / "Git" / "bin" / "bash.exe"
+            )
             if candidate.is_file():
                 bash = str(candidate)
 
@@ -168,8 +171,8 @@ def find_shell(env: dict) -> str:
 
     bash_dir = pathlib.Path(bash).parent
     candidates = [
-        bash_dir,                           # bash.exe already in usr/bin
-        bash_dir.parent / "usr" / "bin",    # bash.exe in <root>/bin or /cmd
+        bash_dir,  # bash.exe already in usr/bin
+        bash_dir.parent / "usr" / "bin",  # bash.exe in <root>/bin or /cmd
         bash_dir.parent.parent / "usr" / "bin",
     ]
 
@@ -188,6 +191,7 @@ def find_shell(env: dict) -> str:
     logger.warning(
         "Found bash at %s but no pwd.exe in any of: %s -- "
         "make's $(shell ...) calls may fail.",
-        bash, ", ".join(str(c) for c in candidates),
+        bash,
+        ", ".join(str(c) for c in candidates),
     )
     return None
