@@ -1,3 +1,7 @@
+# Local-only design notes, not published with the repo
+/DESIGN.md
+/ecs-stack-presentation.md
+
 # Ignore the cache dir
 cache/*
 
