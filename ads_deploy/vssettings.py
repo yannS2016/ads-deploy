@@ -14,6 +14,7 @@ not a valid executable." It needs the actual resolved path.
 
 import argparse
 import logging
+import os
 import pathlib
 import shutil
 
@@ -49,7 +50,18 @@ def _resolve_command(name: str) -> str:
             name,
         )
         return name
-    return found
+
+    # On Windows, shutil.which() appends an extension from the PATHEXT env
+    # var when `name` has none -- and PATHEXT's own casing (commonly
+    # ".EXE", uppercase) is preserved verbatim, which varies by machine/
+    # session for no functional reason (Windows path execution is
+    # case-insensitive either way). Confirmed directly: regenerating this
+    # file on different sessions flip-flopped between "ads-deploy.exe" and
+    # "ads-deploy.EXE", producing pure-noise diffs in a file we want to stay
+    # reproducible. Normalize just the extension to lowercase; leave the
+    # rest of the path's casing untouched.
+    root, ext = os.path.splitext(found)
+    return root + ext.lower()
 
 
 def _build_tools() -> list:
