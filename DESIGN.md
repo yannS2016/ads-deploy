@@ -92,7 +92,16 @@ would draw PR questions. Rejected alternatives, with reasons:
 - **Backend per tool** (uv for pytmc, pixi only for make): doesn't reduce the
   project's actual dependency footprint — pixi is still required either way,
   since make has no other source. Only adds a second install code path for
-  zero reduction in tools-to-explain.
+  zero reduction in tools-to-explain. Concretely: `tool_registry.py`'s
+  `ecosystem` field ("pypi" vs "conda") only changes which `pixi.toml`
+  section a package lands in (`[pypi-dependencies]` vs `[dependencies]`);
+  `install.py`/`toolenv.py`'s environment creation, drift detection, and
+  PATH resolution never branch on ecosystem at all — splitting pytmc onto
+  its own `uv venv` would force exactly that branching back in. It would
+  also lose side-by-side version isolation for pytmc specifically: a pixi
+  project per `(tool, version)` lets two pytmc versions stay installed
+  simultaneously and immutably, where `uv tool install` is built around one
+  active version per tool name and would need extra naming hacks to match.
 - **One shared pixi environment bundling everything** (closest 1:1 port of
   the old `conda_env_base.yml`, with ads-deploy itself installed into that
   same environment): rejected because it reintroduces "ads-deploy is not
