@@ -122,6 +122,32 @@ of the shared install can simply run their own **per-user** `bootstrap.cmd`
 -- this produces a fully separate, personal install and settings file with
 no effect on, or coordination with, the shared one.
 
+### Letting any admin maintain the shared install
+
+Everything above assumes whoever runs `bootstrap.cmd` already has `uv`
+and `pixi` resolvable (step 1) -- by default, both of *their own* installers
+put `uv.exe`/`pixi.exe` under that one person's profile
+(`%USERPROFILE%\.local\bin`, `%USERPROFILE%\.pixi\bin`), so a second admin
+on the same machine wouldn't have them yet. This is a prerequisite-install
+choice, not something `bootstrap.cmd` itself does (it only checks `where
+uv`/`where pixi`/`where git`) -- if more than one admin needs to maintain
+this install, redirect each installer to a shared location once, then add
+it to the system PATH the same optional, manual way as above:
+```powershell
+powershell -ExecutionPolicy ByPass -c "$env:UV_INSTALL_DIR='C:\ProgramData\uv\bin'; irm https://astral.sh/uv/install.ps1 | iex"
+powershell -ExecutionPolicy ByPass -c "$env:PIXI_HOME='C:\ProgramData\pixi'; irm -useb https://pixi.sh/install.ps1 | iex"
+```
+(Setting `UV_INSTALL_DIR`/`PIXI_HOME` ahead of a *separate* `powershell -c
+"irm ... | iex"` call also works, since `cmd.exe`'s `set` exports to child
+processes -- but setting them inside the same `-c` block, as above, needs
+no cross-process inheritance to reason about.)
+then, as Administrator:
+```powershell
+[Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path','Machine') + ';C:\ProgramData\uv\bin;C:\ProgramData\pixi\bin', 'Machine')
+```
+Git for Windows' own installer already offers an explicit "for all users"
+machine-wide option, so it typically needs no equivalent redirection.
+
 VS "External Tools" workflow
 =============================
 
