@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<UserSettings>
+  <ApplicationIdentity version="12.0"/>
+  <ToolsOptions/>
+  <Category name="Environment_Group" RegisteredName="Environment_Group">
+    <Category name="Environment_ExternalTools" Category="{E8FAE9E8-FBA2-4474-B134-AB0FFCFB291D}" Package="{DA9FB551-C724-11d0-AE1F-00A0C90FFFC3}" RegisteredName="Environment_ExternalTools" PackageName="Visual Studio Environment Package">
+      <ExternalTools>
+{% for tool in tools %}
+        <UserCreatedTool>
+          <Arguments>{{ tool.arguments }}</Arguments>
+          <CloseOnExit>true</CloseOnExit>
+          <Command>{{ tool.command }}</Command>
+          <Index>{{ loop.index0 }}</Index>
+          <InitialDirectory>{{ tool.initial_directory }}</InitialDirectory>
+          <IsGUIapp>false</IsGUIapp>
+          <NameID>0</NameID>
+          <Package>{00000000-0000-0000-0000-000000000000}</Package>
+          <PromptForArguments>{{ 'true' if tool.prompt_for_arguments else 'false' }}</PromptForArguments>
+          <SaveAllDocs>true</SaveAllDocs>
+          <Title>{{ tool.title }}</Title>
+          <Unicode>false</Unicode>
+          <UseOutputWindow>{{ 'true' if tool.use_output_window else 'false' }}</UseOutputWindow>
+          <UseTaskList>false</UseTaskList>
+        </UserCreatedTool>
+{% endfor %}
+      </ExternalTools>
+    </Category>
+  </Category>
+  <Category name="TwinCAT" RegisteredName="TwinCAT"/>
+</UserSettings>
