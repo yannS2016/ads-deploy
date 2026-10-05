@@ -84,6 +84,20 @@ conda-env executable location (`Scripts`, `Library/bin`,
 whichever ones actually exist, so this generalizes to any future tool without
 per-tool knowledge of where its binaries land.
 
+Yes, this really does mean a fully separate `.pixi/envs/default` (own
+Python interpreter, own full dependency set) per `(tool, version)` --
+installing `pytmc/v2.22.2` alongside an existing `pytmc/v2.22.1` creates a
+second, completely independent environment, not a shared/updated one. This
+multiplies each environment's own on-disk footprint (now a bit heavier
+since `qtpy`/`PySide6` were added for `pytmc debug`), but it does **not**
+mean re-downloading identical package bytes per environment: pixi keeps a
+single shared local package cache across every environment on the machine,
+keyed by package/version/hash, so a package already fetched for one
+`(tool, version)` is reused (linked/copied from cache, not re-fetched over
+the network) by any other environment that resolves to the identical
+package. The cost of per-version isolation is duplicated environment
+metadata/links on disk, not duplicated downloads.
+
 ### Other architectures considered (revisited and re-confirmed)
 
 This two-tool split was revisited explicitly after review feedback that it
