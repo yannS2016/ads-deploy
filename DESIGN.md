@@ -381,7 +381,7 @@ not just the package availability -- so `pre-commit` is installed the same
 way as `ads-deploy` itself in `bootstrap.cmd`, via `uv tool install
 pre-commit` into the same `UV_TOOL_DIR`/`UV_TOOL_BIN_DIR` (shared, when
 `ADS_DEPLOY_SHARED_DIR` is set). It's also kept in `pyproject.toml`'s
-`[dependency-groups] dev` list alongside `pytest`/`flake8`/`coverage`, for
+`[dependency-groups] dev` list alongside `pytest`/`ruff`/`coverage`, for
 anyone managing their own isolated dev venv -- but the shared `uv tool
 install` is the primary path for "just works for everyone on this machine."
 

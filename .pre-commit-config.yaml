@@ -17,12 +17,9 @@ repos:
         exclude: '^(conda-recipe/meta.yaml)$'
     -   id: debug-statements
 
--   repo: https://github.com/pycqa/flake8.git
-    rev: 3.9.2
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.6
     hooks:
-    -   id: flake8
-
--   repo: https://github.com/timothycrosley/isort
-    rev: 5.10.1
-    hooks:
-    -   id: isort
+    -   id: ruff-check  # run the linter
+        args: [ --fix ]  # and the safe fixes
+    -   id: ruff-format  # run the formatter

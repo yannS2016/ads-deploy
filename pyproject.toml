@@ -49,7 +49,7 @@ include = [
 [dependency-groups]
 dev = [
     "coverage",
-    "flake8",
+    "ruff",
     "pre-commit",
     "pytest",
     "sphinx",
