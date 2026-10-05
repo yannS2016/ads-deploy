@@ -133,14 +133,29 @@ choice, not something `bootstrap.cmd` itself does (it only checks `where
 uv`/`where pixi`/`where git`) -- if more than one admin needs to maintain
 this install, redirect each installer to a shared location once, then add
 it to the system PATH the same optional, manual way as above:
-```powershell
-powershell -ExecutionPolicy ByPass -c "$env:UV_INSTALL_DIR='C:\ProgramData\uv\bin'; irm https://astral.sh/uv/install.ps1 | iex"
-powershell -ExecutionPolicy ByPass -c "$env:PIXI_HOME='C:\ProgramData\pixi'; irm -useb https://pixi.sh/install.ps1 | iex"
-```
-(Setting `UV_INSTALL_DIR`/`PIXI_HOME` ahead of a *separate* `powershell -c
-"irm ... | iex"` call also works, since `cmd.exe`'s `set` exports to child
-processes -- but setting them inside the same `-c` block, as above, needs
-no cross-process inheritance to reason about.)
+- Command Prompt (`cmd.exe`) -- `set` exports cleanly to the child
+  `powershell.exe` process it launches, no quoting hazards:
+  ```
+  set UV_INSTALL_DIR=C:\ProgramData\uv\bin
+  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+  set PIXI_HOME=C:\ProgramData\pixi
+  powershell -ExecutionPolicy ByPass -c "irm -useb https://pixi.sh/install.ps1 | iex"
+  ```
+- PowerShell (run directly, no nested `powershell -c` needed -- and don't
+  wrap this form in one: if typed inside an *already-running* PowerShell
+  prompt, a double-quoted `-c "..."` string interpolates `$env:...`
+  immediately, before the inner command ever sees it, silently passing an
+  empty value -- confirmed directly, this is exactly what broke the first
+  version of this instruction):
+  ```powershell
+  $env:UV_INSTALL_DIR = 'C:\ProgramData\uv\bin'
+  irm https://astral.sh/uv/install.ps1 | iex
+
+  $env:PIXI_HOME = 'C:\ProgramData\pixi'
+  irm -useb https://pixi.sh/install.ps1 | iex
+  ```
+
 then, as Administrator:
 ```powershell
 [Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path','Machine') + ';C:\ProgramData\uv\bin;C:\ProgramData\pixi\bin', 'Machine')
