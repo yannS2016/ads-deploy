@@ -1,0 +1,133 @@
+"""
+Shared helpers for the `ads-deploy lint`/`build`/`debug`/`summary` commands
+that back Visual Studio's "External Tools" menu entries directly (no `.cmd`
+wrapper, no bash) -- see DESIGN.md for why.
+"""
+
+import logging
+import os
+import pathlib
+import shutil
+import sys
+
+from . import pathmunge
+
+logger = logging.getLogger(__name__)
+
+
+def resolve_solution(solution: str) -> pathlib.Path:
+    """
+    Resolve the full solution path, passed as ONE argument.
+
+    Deliberately a single argument rather than separate $(SolutionDir) and
+    $(SolutionFileName) macros: $(SolutionDir) always ends in a backslash,
+    and a quoted Windows argument ending in `\\"` has its closing quote
+    escaped by standard argv parsing (confirmed directly: two quoted args
+    `"...cc_test\\"` + `"cc_test.sln"` merge into one garbled argv entry).
+    A full path ending in `.sln` can't trigger that, so VS's Arguments
+    field concatenates the macros with no space:
+    `$(SolutionDir)$(SolutionFileName)`.
+    """
+    return pathlib.Path(solution)
+
+
+def tool_env(*tool_specs: str) -> dict:
+    """
+    Resolve one or more tool specs (same syntax as `ads-deploy pathmunge`)
+    **in-process** and return an ``os.environ``-based copy with their
+    directories prepended to PATH, for use as ``subprocess.run(..., env=...)``.
+
+    Calling `pathmunge.resolve_tool_spec` directly -- rather than shelling
+    out to `ads-deploy pathmunge` and reparsing its stdout -- is the whole
+    point: it removes an entire class of cmd.exe/bash quoting and
+    PATH-separator bugs that only exist at a subprocess boundary.
+    """
+    all_dirs = []
+    for spec in tool_specs:
+        all_dirs.extend(pathmunge.resolve_tool_spec(spec))
+
+    sep = ";" if sys.platform == "win32" else ":"
+    prepend = sep.join(str(d) for d in all_dirs)
+
+    env = os.environ.copy()
+    existing = env.get("PATH", "")
+    env["PATH"] = f"{prepend}{sep}{existing}" if existing else prepend
+    return env
+
+
+def find_shell(env: dict) -> str:
+    """
+    Locate a directory holding the *full* Git for Windows coreutils set
+    (`pwd.exe`, `mkdir.exe`, `sh.exe`, etc.) and make sure it's on ``env``'s
+    PATH, mutating ``env`` in place. Returns the `sh.exe` path found there,
+    or ``None`` if no such directory can be located.
+
+    Two distinct fixes are needed here, confirmed directly against real
+    build failures -- neither one alone is sufficient:
+
+    1. GNU Make's Windows port runs some `$(shell ...)` calls (e.g.
+       `$(shell pwd)`, used by ads-ioc's Makefile.base) via *direct*
+       `CreateProcess`, bypassing any shell entirely, when it decides the
+       command has no shell metacharacters -- this is what
+       `process_begin: CreateProcess(NULL, pwd, ...) failed.` means. `pwd`
+       itself is a shell *builtin* with no standalone executable in most
+       places, but Git for Windows' coreutils ship a real standalone
+       `pwd.exe` -- CreateProcess can find and run that, so its directory
+       must be on PATH.
+    2. For recipe lines that DO need a real shell, GNU Make does NOT use an
+       inherited environment `SHELL` variable (deliberate, for build
+       reproducibility -- see the GNU Make manual); it only honors a
+       `SHELL=...` *command-line* variable assignment, which the caller
+       must pass as a `make` argument -- confirmed directly: setting
+       `env["SHELL"]` alone had no effect.
+
+    Previously both worked implicitly because the old build chain ran
+    `make` as a *child* of `bash.exe`; calling `make` directly from Python
+    has no such parent to inherit a shell-aware PATH/setup from.
+
+    Where this actually lives is NOT reliably "next to bash.exe": Git for
+    Windows' installer-registered `<GitRoot>\\bin` can hold `bash.exe` *and*
+    `sh.exe` as minimal shims without the full coreutils set at all --
+    `pwd.exe`/`mkdir.exe`/etc. only exist in the sibling `<GitRoot>\\usr\\bin`
+    (confirmed directly: assuming "same directory as bash.exe" found a
+    valid `sh.exe` but not `pwd.exe`, and the CreateProcess failure
+    persisted even with that wrong directory added to PATH). So every
+    plausible layout is checked and verified by actually finding `pwd.exe`
+    there, rather than assumed.
+    """
+    if sys.platform != "win32":
+        return None
+
+    bash = shutil.which("bash", path=env.get("PATH"))
+    if bash is None:
+        logger.warning(
+            "No bash found on PATH -- make's Makefile recipes may fail. "
+            "Install Git for Windows: https://git-scm.com/download/win"
+        )
+        return None
+
+    bash_dir = pathlib.Path(bash).parent
+    candidates = [
+        bash_dir,                           # bash.exe already in usr/bin
+        bash_dir.parent / "usr" / "bin",    # bash.exe in <root>/bin or /cmd
+        bash_dir.parent.parent / "usr" / "bin",
+    ]
+
+    for candidate in candidates:
+        if (candidate / "pwd.exe").is_file():
+            logger.info("Using Git for Windows coreutils at %s", candidate)
+            # Appended, not prepended: this directory exists only to supply
+            # pwd/sh/mkdir as a fallback. It must never outrank the pinned
+            # pytmc/make directories tool_env() already put on PATH -- if it
+            # happened to contain its own "python3" or similar, prepending
+            # it would silently shadow the pinned, version-checked pytmc.
+            env["PATH"] = f"{env.get('PATH', '')};{candidate}"
+            sh = candidate / "sh.exe"
+            return str(sh) if sh.is_file() else None
+
+    logger.warning(
+        "Found bash at %s but no pwd.exe in any of: %s -- "
+        "make's $(shell ...) calls may fail.",
+        bash, ", ".join(str(c) for c in candidates),
+    )
+    return None

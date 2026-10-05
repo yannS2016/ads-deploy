@@ -17,10 +17,17 @@ DESCRIPTION = __doc__
 MODULES = {
     'config': 'config',
     'iocboot': 'iocboot',
-    'typhos_gui': 'typhos',
-    'caproto_ioc': 'caproto',
     'tsproj': 'tsproj',
     'docs': 'docs',
+    'install': 'install',
+    'pathmunge': 'pathmunge',
+    'versions': 'versions',
+    'fetch_ads_ioc': 'fetch-ads-ioc',
+    'vssettings': 'vssettings',
+    'lint': 'lint',
+    'build': 'build',
+    'debug': 'debug',
+    'summary': 'summary',
 }
 
 

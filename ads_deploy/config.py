@@ -28,17 +28,14 @@ def build_arg_parser(parser=None):
     parser.add_argument(
         '--net-id',
         action='store_true',
-        help=('Configure the AMS Net ID settings in the deploy configuration. '
-              'Not required unless intending to run the IOC with Docker.'),
+        help='Configure the AMS Net ID settings in the deploy configuration.',
     )
 
     parser.add_argument(
         '--ip',
         nargs='*',
         type=str,
-        help=('IP address(es) to determine an AMS Net ID for docker-based IOC '
-              'usage. Not required unless intending to run the IOC with '
-              'Docker.')
+        help='IP address(es) to determine an AMS Net ID for the IOC.'
     )
 
     return parser
