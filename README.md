@@ -1,70 +1,180 @@
-ads-deploy docker image + tools
-===============================
+ads-deploy
+==========
 
-ads-deploy bridges the gap between your PLC project in TwinCAT XAE + Visual Studio and the
-Python/EPICS tools we use for development and deployment ([PyTMC](https://github.com/slaclab/pytmc),
-[ads-ioc](https://github.com/pcdshub/ads-ioc)) by providing a full EPICS and Python environment
-in a containerized Docker image.
+ads-deploy bridges the gap between your PLC project in TwinCAT XAE + Visual
+Studio and the Python/EPICS tools we use for development and deployment
+([PyTMC](https://github.com/slaclab/pytmc), [ads-ioc](https://github.com/pcdshub/ads-ioc)),
+invoked directly from Windows via the Visual Studio "External Tools" menu.
+
+ads-deploy itself is packaged and versioned with [uv](https://docs.astral.sh/uv/).
+The tools it *manages for you* (pytmc, make) are provisioned with
+[pixi](https://pixi.sh/), since pixi can resolve both PyPI and conda-forge
+packages -- pip/uv alone can only ever reach PyPI, which doesn't cover
+non-Python tools like `make`. Docker and conda (the environment-manager) are
+no longer used or required. See [DESIGN.md](DESIGN.md) for the full
+rationale behind these choices and a file-by-file summary of the redesign.
 
 Features
 ========
 
 * pytmc pragma linting / verification
-* Build and run ads-based EPICS IOCs directly from Windows
-* Generate batch files to run the IOC outside of Visual Studio
-* Auto-generate and run simple Typhon screens directly from Windows
-* No need to transfer your project and files to a Linux machine just to generate the IOC
+* Build ads-based EPICS IOCs directly from Windows
+* Generate IOC boot directories and Makefiles from a TwinCAT solution
+* Generate Sphinx-compatible documentation from pytmc pragmas
+* Install and pin isolated, immutable versions of any registered tool --
+  pytmc (PyPI), make (conda-forge) -- and expose them on `PATH` without any
+  environment activation (`ads-deploy install` / `ads-deploy pathmunge`)
+* Fetch/update the `ads-ioc` common IOC module (`ads-deploy fetch-ads-ioc`)
+* Regenerate the Visual Studio external tools settings for your own install
+  location (`ads-deploy vssettings`)
 
 Installation
 ============
 
-**Note: this is partly outdated - Docker is no longer required and conda may be used in place of it**
+1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/),
+   [pixi](https://pixi.sh/latest/installation/), and
+   [Git for Windows](https://git-scm.com/download/win) (for `git`, and for
+   the `sh.exe` GNU Make's Windows port looks for to run Makefile recipes).
+2. Clone this repository (e.g. to `C:\Repos\ads-deploy`).
+3. Set `PYTMC_VERSION` and `MAKE_VERSION` and run `bootstrap.cmd` from the
+   repo root:
+   - Command Prompt (`cmd.exe`):
+     `set PYTMC_VERSION=v2.22.2 && set MAKE_VERSION=4.4.1 && bootstrap.cmd`
+   - PowerShell:
+     `$env:PYTMC_VERSION = "v2.22.2"; $env:MAKE_VERSION = "4.4.1"; .\bootstrap.cmd`
 
-Step-by-step notes are available here:
-https://confluence.slac.stanford.edu/display/PCDS/Installing+ads-deploy+on+Windows
+   This will:
+   - Install `ads-deploy` itself as a uv tool (`ads-deploy` becomes available
+     globally, no activation needed).
+   - Install the pinned pytmc (from PyPI) and make (from conda-forge), each
+     into its own isolated pixi environment.
+   - Fetch the `ads-ioc` common module.
+   - Regenerate `external-tools.vssettings` to point at this install location.
+4. In Visual Studio: **Tools > Import and Export Settings... > Import** and
+   select the generated `external-tools.vssettings`. This adds the "External
+   Tools" menu entries used against any open TwinCAT solution.
 
-Using just the Docker container is simple on all platforms. Run the following to check it out:
+VS "External Tools" workflow
+=============================
 
-Windows
-```sh
-C:\> docker run -it pcdshub/ads-deploy:latest /bin/bash
+Each menu entry calls `ads-deploy` directly (`Command=ads-deploy`) with a
+subcommand and the full solution path as **one** argument -- there is no
+`.cmd` wrapper script and no bash involved anywhere in this chain. The two
+macros are concatenated with no space (`$(SolutionDir)$(SolutionFileName)`,
+not `$(SolutionDir) $(SolutionFileName)`) deliberately: `$(SolutionDir)`
+always ends in a backslash, and a quoted Windows argument ending in `\"` has
+its closing quote escaped by standard argv parsing, merging it with whatever
+argument follows (confirmed directly). A full path ending in `.sln` can't
+trigger that.
+
+| Menu entry | Command |
+| --- | --- |
+| Lint pragmas | `ads-deploy lint $(SolutionDir)$(SolutionFileName)` |
+| Configure and build IOC(s) | `ads-deploy build $(SolutionDir)$(SolutionFileName)` |
+| Record debugging | `ads-deploy debug $(SolutionDir)$(SolutionFileName)` |
+| Project summary | `ads-deploy summary $(SolutionDir)$(SolutionFileName)` |
+| Qt Designer | `designer` (not pytmc-specific, called directly) |
+
+From a terminal, pass the full `.sln` path as one argument, e.g.
+`ads-deploy build "C:\...\cc_test\cc_test.sln"` -- not a separate directory
+and filename.
+
+`ads-deploy build` is the one that used to need `bash.exe` (`build_ioc.cmd` →
+`create_iocboot.cmd` → `build.sh`) purely to enumerate `ioc-*` directories,
+patch a Makefile line that's dead code once `make`'s own command-line
+variables already override it, and export `PATH`. All of that is now plain
+Python (`pathlib.Path.glob`, `vstools.tool_env`) -- `make.exe` itself is a
+native Windows console executable and never needed bash to run.
+
+Managing tool versions
+=======================
+
+Provisioning and PATH exposure are two separate steps, matching how
+`ctrlenv-pathmunge` works on Linux (it only resolves and exposes a version
+already built elsewhere -- it doesn't build anything itself):
+
+* `ads-deploy install <tool>/<version>` provisions (once, immutably) an
+  isolated [pixi](https://pixi.sh/) environment for a pinned version of a
+  registered tool. Installing the same `tool/version` again is a no-op
+  *unless* ads-deploy would now generate a different `pixi.toml` for it
+  (e.g. a newer ads-deploy version changed a dependency pin) -- that's
+  detected automatically and rebuilt without needing `--force`. Run
+  `ads-deploy install` with **no** arguments to install every entry in a
+  `pathmunge.toml`'s `[tool-versions]` table at once (found by walking up
+  from the current directory) -- the same file that pins what a project
+  resolves also doubles as its install manifest, so there's only one file
+  to maintain.
+* `ads-deploy pathmunge <tool>/<version> [<tool2>/<version2> ...]` resolves
+  one or more *already-installed* tool/versions and prints a single `PATH`
+  fragment (all their executable directories joined together) to prepend --
+  without activating any environment. It fails (and tells you to run
+  `install`) if a requested version isn't provisioned yet. `ads-deploy
+  build`/`lint`/`debug`/`summary` call the same resolution logic
+  **in-process** (`vstools.tool_env`) rather than shelling out to this
+  command -- no subprocess boundary, no shell quoting involved at all for
+  the actual "External Tools" workflow.
+
+Which registry a tool's package comes from is a one-line, declarative entry
+in [`ads_deploy/tool_registry.py`](ads_deploy/tool_registry.py) -- adding a
+future tool that's conda-forge-only (a compiler, a library, anything
+non-Python) is just a new entry there, never new install logic:
+
+```python
+REGISTRY = {
+    "pytmc": ToolSource(ecosystem="pypi", package="pytmc"),
+    "make": ToolSource(ecosystem="conda", package="make"),
+}
 ```
 
-OSX / Linux
-```sh
-$ eval $(docker-machine env)
-$ docker run -it pcdshub/ads-deploy:latest /bin/bash
+```
+$ ads-deploy install pytmc/v2.22.2
+$ ads-deploy install make/4.4.1
+$ ads-deploy pathmunge pytmc/v2.22.2 make/4.4.1
+C:\...\toolenvs\pytmc\v2.22.2\.pixi\envs\default\Scripts;C:\...\toolenvs\make\4.4.1\.pixi\envs\default\Library\bin
+
+$ ads-deploy versions pytmc
+v2.22.2
 ```
 
-Updating versions
-=================
+`ads-deploy pathmunge <tool>` (no version) resolves one in order: a
+`pathmunge.toml` pin (see below), then the highest version of `<tool>`
+already installed locally, then fails with a pointer to `install` only if
+nothing is installed at all. So a project with nothing pinned just uses
+whatever you last installed -- no `pathmunge.toml` is required for the
+common case.
 
-Steps to update ads-deploy:
+A project can pin its own version explicitly by placing a `pathmunge.toml`
+next to its `.sln`:
 
-1. Update ads-ioc-docker (follow its README)
-2. Tag and release pytmc (use v0.0.0 style as usual)
-3. Update the `FROM` pcdshub/ads-ioc version
-4. Update environment variables: `PYTMC_VERSION`, `ADS_IOC_VERSION`
-5. Rebuild. Match the `ADS_DEPLOY_VERSION` with the pytmc version, as it
-   tends to change the most:
-    ```
-    $ export ADS_DEPLOY_VERSION={pytmc version}
-    $ docker build -t pcdshub/ads-deploy:${ADS_DEPLOY_VERSION} .
-    $ docker build -t pcdshub/ads-deploy:latest .
-    ```
-6. Push to DockerHub
-    ```
-    $ docker push pcdshub/ads-deploy:${ADS_DEPLOY_VERSION}
-    $ docker push pcdshub/ads-deploy:latest
-    ```
-7. Commit, tag, and push to GitHub
-    ```
-    $ git tag ${ADS_DEPLOY_VERSION}
-    $ git push
-    $ git push --tags
-    ```
+```toml
+[tool-versions]
+pytmc = "v2.22.2"
+make = "4.4.1"
+```
 
-Links
-=====
+```
+$ ads-deploy install
+INFO:ads_deploy.install:Installing every tool pinned in .\pathmunge.toml
+```
 
-* [Docker Hub](https://hub.docker.com/r/pcdshub/ads-deploy/tags)
+### Using pinned tools directly from a terminal (outside TwinCAT/VS)
+
+`ads-deploy pathmunge` only *prints* the resolved PATH fragment -- it can't
+modify your current shell's `PATH` itself (a child process can never reach
+back and mutate its parent shell's environment; that's an OS-level
+constraint, not a design choice -- the same reason `conda activate` is a
+shell function/script, not a plain executable). `bootstrap.cmd` installs two
+small wrapper scripts next to `ads-deploy` itself for exactly this case:
+
+```
+C:\> pathmunge-activate pytmc make
+C:\> pytmc --version
+
+PS C:\> . pathmunge-activate.ps1 pytmc make
+PS C:\> pytmc --version
+```
+
+The `cmd.exe` version must be invoked directly by name (never via
+`cmd /c pathmunge-activate ...`); the PowerShell version must be
+dot-sourced (the leading `. `) -- both are required so the PATH change runs
+in your current shell's scope rather than a throwaway child process.
