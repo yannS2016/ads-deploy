@@ -71,15 +71,17 @@ By default, step 3 installs `ads-deploy` (and the pinned pytmc/make, plus
 `pre-commit`) under the *current user's own profile* (`uv tool install`'s
 own default) -- other accounts on the same machine won't see it. For a
 shared install, set `ADS_DEPLOY_SHARED_DIR` before running `bootstrap.cmd`,
-as an Administrator:
+as an Administrator, to **exactly** this path:
 ```
 set ADS_DEPLOY_SHARED_DIR=C:\ProgramData\ads-deploy
 ```
-Use a location under `C:\ProgramData`, not an ordinary user-writable
-directory: its default ACLs give regular accounts read+execute but not
-write, which is what keeps a curious or novice user from corrupting the
-shared install -- this is deliberate, not incidental, since settings files
-have been fiddled with by accident before.
+Two separate things depend on using this exact path, not just "some
+location under `C:\ProgramData`": its default ACLs give regular accounts
+read+execute but not write, which is what keeps a curious or novice user
+from corrupting the shared install (deliberate, not incidental -- settings
+files have been fiddled with by accident before); and `toolenv.py`'s
+auto-detection of the shared pytmc/make environments (below) checks this
+specific path.
 
 **The actual zero-command outcome for other users is the generated
 `external-tools.vssettings` file, not PATH.** `bootstrap.cmd` regenerates it
@@ -94,17 +96,16 @@ only do the one unavoidable GUI step everyone does regardless of install
 mode (step 4 below -- VS External Tools settings are confirmed per-user,
 with no all-users import option).
 
-`bootstrap.cmd` also sets `ADS_DEPLOY_TOOLENV_ROOT` **system-wide** via
-`setx /M` when `ADS_DEPLOY_SHARED_DIR` is set -- unlike `PATH`, this is a
-single short, standalone string (nowhere near `setx`'s 1024-character
-truncation limit), so scripting it is safe. This one *is* required, not
-optional: it's what every other user's VS-launched `ads-deploy build`/
-`lint`/etc. calls use to find the shared pytmc/make pixi environments
-(`ads_deploy/toolenv.py`'s `toolenv_root()`, per-user `%LOCALAPPDATA%` by
-default) -- without it, those calls would silently fall back to each user's
-own, empty, per-user location and fail. Like any system environment
-variable change, it only takes effect for other users at their *next*
-login, not retroactively in an already-open session.
+**Other users' `ads-deploy build`/`lint`/etc. calls find the shared pytmc/
+make environments with no env var and no admin step on their end**, as long
+as `ADS_DEPLOY_SHARED_DIR` is exactly `C:\ProgramData\ads-deploy`:
+`ads_deploy/toolenv.py`'s `toolenv_root()` checks for a pixi toolenvs
+directory at that canonical path first, before falling back to the
+per-user `%LOCALAPPDATA%` default, so it picks the shared one up
+automatically once it exists on disk -- no registry write (`setx /M`)
+required at all. (A *different* `ADS_DEPLOY_SHARED_DIR` still works, but
+loses this auto-detection -- every other user would then need their own
+`ADS_DEPLOY_TOOLENV_ROOT` override pointed at it manually.)
 
 Extending the system `PATH` is a **separate, optional** step, only needed
 for people who also want `ads-deploy`/`pytmc`/`make`/`pre-commit` available

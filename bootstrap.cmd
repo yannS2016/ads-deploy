@@ -62,66 +62,51 @@ SET "RepoRoot=%RepoRoot:~0,-1%"
 REM Optional: install ads-deploy (and the pinned pytmc/make/pre-commit) to a
 REM SHARED location instead of the current user's own profile, so every
 REM other user on this machine can just IMPORT the vssettings file this
-REM script generates at the end -- no install command of their own, ever.
-REM To use this mode, set ADS_DEPLOY_SHARED_DIR to a shared path before
-REM running bootstrap.cmd, e.g.:
+REM script generates at the end -- no install command of their own, ever,
+REM and (as of this version) no registry/env-var step for anyone either.
+REM To use this mode, set ADS_DEPLOY_SHARED_DIR before running bootstrap.cmd:
 REM     set ADS_DEPLOY_SHARED_DIR=C:\ProgramData\ads-deploy
 REM Leave it unset for the default, per-user install -- `uv tool install`'s
 REM own default, which is NOT visible to other users on the machine.
 REM
-REM Pick a location under C:\ProgramData (not e.g. C:\Repos\...): its
-REM default ACLs give ordinary users read+execute but not write, which is
-REM what keeps a curious/novice user from corrupting the shared install --
-REM confirmed via `icacls`. This script does not set permissions itself; it
-REM relies on that default.
+REM Use EXACTLY this path, not a different one: two separate things depend
+REM on it being C:\ProgramData\ads-deploy specifically.
+REM   1. C:\ProgramData's default ACLs give ordinary users read+execute but
+REM      not write, which is what keeps a curious/novice user from
+REM      corrupting the shared install -- confirmed via `icacls`. This
+REM      script does not set permissions itself; it relies on that default,
+REM      which a different, user-writable location (e.g. C:\Repos\...)
+REM      would not give you.
+REM   2. `ads_deploy/toolenv.py`'s toolenv_root() auto-detects the pixi
+REM      toolenvs directory specifically at %ProgramData%\ads-deploy\toolenvs
+REM      and uses it automatically if it exists -- no env var, no setx, no
+REM      admin rights needed by any other user. This is why the setx /M
+REM      ADS_DEPLOY_TOOLENV_ROOT step this script used to have is gone: it's
+REM      no longer needed at all when this convention is followed. A
+REM      different ADS_DEPLOY_SHARED_DIR still works (via an explicit
+REM      ADS_DEPLOY_TOOLENV_ROOT override), but loses this auto-detection,
+REM      and would need every other user to set that override themselves.
 REM
-REM This only sets UV_TOOL_DIR/UV_TOOL_BIN_DIR for THIS SCRIPT's own run
-REM (safe, standalone values, not persisted via setx -- a future admin
-REM re-run just sets them again the same way; there's nothing durable worth
-REM persisting here). It deliberately never touches the system PATH itself:
-REM `setx /M PATH ...` has a hard 1024-character limit and silently
-REM TRUNCATES longer values, which can corrupt the whole machine's PATH --
-REM too risky to do unattended from a script, especially since the VS
-REM External Tools workflow doesn't need PATH at all (see the vssettings
-REM step below) -- extending PATH machine-wide is now optional, only for
-REM people who also want `ads-deploy`/`pytmc`/`make`/`pre-commit` from a
-REM plain terminal. Computed here, OUTSIDE any block: a variable SET inside
-REM a parenthesized ( ... ) block and then read later in that SAME block
-REM expands to empty (cmd.exe freezes %VAR% substitutions to their
-REM pre-block value for the whole block) -- confirmed directly, caught via
-REM testing, same gotcha fixed elsewhere in this project's .cmd files.
+REM This only sets UV_TOOL_DIR/UV_TOOL_BIN_DIR/ADS_DEPLOY_TOOLENV_ROOT for
+REM THIS SCRIPT's own run (safe, standalone values, nothing persisted -- a
+REM future admin re-run just sets them again the same way). This script
+REM deliberately never touches the system PATH itself: `setx /M PATH ...`
+REM has a hard 1024-character limit and silently TRUNCATES longer values,
+REM which can corrupt the whole machine's PATH -- too risky to do
+REM unattended from a script, especially since the VS External Tools
+REM workflow doesn't need PATH at all (see the vssettings step below) --
+REM extending PATH machine-wide is optional, only for people who also want
+REM `ads-deploy`/`pytmc`/`make`/`pre-commit` from a plain terminal. Computed
+REM here, OUTSIDE any block: a variable SET inside a parenthesized ( ... )
+REM block and then read later in that SAME block expands to empty (cmd.exe
+REM freezes %VAR% substitutions to their pre-block value for the whole
+REM block) -- confirmed directly, caught via testing, same gotcha fixed
+REM elsewhere in this project's .cmd files.
 IF NOT "%ADS_DEPLOY_SHARED_DIR%"=="" (
     SET "UV_TOOL_DIR=%ADS_DEPLOY_SHARED_DIR%\uv-tools"
     SET "UV_TOOL_BIN_DIR=%ADS_DEPLOY_SHARED_DIR%\bin"
-    REM UV_TOOL_DIR/UV_TOOL_BIN_DIR only affect `uv tool install` (ads-deploy,
-    REM pre-commit themselves) -- only THIS script's own run needs them, so a
-    REM plain session-local SET is enough (see the long comment above).
-    REM
-    REM ADS_DEPLOY_TOOLENV_ROOT is different: it redirects the per-(tool,
-    REM version) pixi environments `ads-deploy install` creates for
-    REM pytmc/make (ads_deploy/toolenv.py's toolenv_root(), per-user AppData
-    REM by default). Unlike the vssettings Command path, OTHER users' later
-    REM `ads-deploy build`/`lint`/etc. calls (spawned fresh by Visual Studio,
-    REM with none of this script's session state) also need to see this
-    REM variable -- so it must be set SYSTEM-WIDE, not just for this run.
-    REM setx is safe to use here (unlike for PATH): it's one short, standalone
-    REM string, nowhere near setx's 1024-character truncation limit.
     SET "ADS_DEPLOY_TOOLENV_ROOT=%ADS_DEPLOY_SHARED_DIR%\toolenvs"
     echo Installing to the shared location %ADS_DEPLOY_SHARED_DIR% ...
-    setx /M ADS_DEPLOY_TOOLENV_ROOT "%ADS_DEPLOY_TOOLENV_ROOT%" >nul
-    REM `IF %ERRORLEVEL% NEQ 0` would NOT work here: this whole IF is nested
-    REM inside the outer ADS_DEPLOY_SHARED_DIR block, and cmd.exe pre-expands
-    REM every %VAR% in a parenthesized block once, at the moment the block is
-    REM ENTERED -- so %ERRORLEVEL% here would stay frozen at its pre-setx
-    REM value (0) no matter what setx actually returns, silently masking a
-    REM real failure (confirmed directly: this exact bug shipped and hid a
-    REM genuine "run as Administrator" failure). `IF ERRORLEVEL 1` is a
-    REM special conditional form, not a %...% substitution -- cmd.exe
-    REM evaluates it live, immune to the freezing.
-    IF ERRORLEVEL 1 (
-        echo ** FAILED: could not set ADS_DEPLOY_TOOLENV_ROOT system-wide. Run this script as Administrator. **
-        EXIT /B 1
-    )
 )
 
 IF "%PYTMC_VERSION%"=="" (
@@ -221,12 +206,12 @@ IF NOT "%ADS_DEPLOY_SHARED_DIR%"=="" (
     echo machine to import as-is -- they do not need to run this script, or
     echo any command, themselves.
     echo.
-    echo NOTE: ADS_DEPLOY_TOOLENV_ROOT was just set SYSTEM-WIDE so other
-    echo users' VS-launched `ads-deploy build`/`lint`/etc. calls can find the
-    echo shared pytmc/make environments. Like any system environment
-    echo variable change, this only takes effect for OTHER users the next
-    echo time they log in ^(not retroactively for an already-open session^)
-    echo -- standard Windows behavior, nothing this script can do about it.
+    echo NOTE: other users' VS-launched `ads-deploy build`/`lint`/etc. calls
+    echo will automatically find the shared pytmc/make environments at
+    echo %ADS_DEPLOY_SHARED_DIR%\toolenvs -- no env var or admin step needed
+    echo on their end, as long as ADS_DEPLOY_SHARED_DIR stayed
+    echo C:\ProgramData\ads-deploy ^(see bootstrap.cmd's own comments if you
+    echo used a different location^).
     echo.
     echo Optional: if people also want `ads-deploy`/`pytmc`/`make`/
     echo `pre-commit` available from a plain terminal ^(not needed for the

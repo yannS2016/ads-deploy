@@ -390,37 +390,44 @@ this once for everyone" (see git history on `mnt_new_design` around the
    trying to eliminate, and would additionally require PATH to already be
    extended for that user just so `ads-deploy` itself resolves.
 2. **System `PATH` mutation stays a manual, printed instruction, never
-   scripted -- but `ADS_DEPLOY_TOOLENV_ROOT` IS scripted via `setx /M`.**
-   These look similar (both are "make the shared location visible to other
-   users") but have opposite risk profiles. `setx /M PATH ...` has a hard
-   1024-character limit and silently truncates longer values, risking
-   corruption of the whole machine's PATH -- and it's no longer even
-   necessary for the VS workflow per (1), only for people who also want
-   these tools from a plain terminal, so it's left manual. `setx /M
-   ADS_DEPLOY_TOOLENV_ROOT ...` is one short, standalone path string, nowhere
-   near that limit -- and unlike PATH, it's not optional: every other user's
-   VS-launched `ads-deploy build`/`lint`/etc. calls read it (via
-   `ads_deploy/toolenv.py`'s `toolenv_root()`) to find the shared pytmc/make
-   pixi environments; without it they'd silently fall back to each user's
-   own, empty, per-user `%LOCALAPPDATA%` location and fail. (As with any
-   system environment variable, this only takes effect for other users at
-   their next login -- not retroactively, nothing scriptable can change
-   that.) This whole distinction is also a deliberate break from the conda
-   mental model: conda's `activate` bundles "where files live" and "what's
-   on PATH" into one action with no durable state to manage at all, while
-   uv's tool-shim model keeps "where files live" (`UV_TOOL_DIR`/
-   `UV_TOOL_BIN_DIR`, `ADS_DEPLOY_TOOLENV_ROOT` -- safe, scriptable) separate
-   from "what's on PATH" (durable Windows system state, deliberately left to
-   one manual, reviewable admin action).
+   scripted -- and `ADS_DEPLOY_TOOLENV_ROOT` needs no scripting at all.**
+   An earlier version of this used `setx /M ADS_DEPLOY_TOOLENV_ROOT ...` to
+   make the shared pytmc/make location visible to other users' VS-launched
+   `ads-deploy build`/`lint`/etc. calls, reasoning that (unlike `PATH`) it's
+   one short, standalone string with no truncation risk, so scripting it was
+   safe. That turned out unnecessary: `ads_deploy/toolenv.py`'s
+   `toolenv_root()` now checks for a pixi toolenvs directory at the
+   canonical `%ProgramData%\ads-deploy\toolenvs` path *first* and uses it
+   automatically if it's there, before falling back to the per-user
+   `%LOCALAPPDATA%` default -- no environment variable, no registry write,
+   no admin rights needed by anyone but whoever already needed them to
+   create that directory in the first place. This also sidesteps `setx`'s
+   "only takes effect at next login" lag entirely, and a real bug it hid:
+   the `IF %ERRORLEVEL% NEQ 0` check guarding that old `setx /M` call was
+   nested inside the outer `ADS_DEPLOY_SHARED_DIR` block, so cmd.exe's
+   block-wide `%VAR%` pre-expansion froze it at its pre-`setx` value --
+   confirmed directly, it silently swallowed a real "run as Administrator"
+   failure in practice. `PATH` itself still can't use this trick (nothing
+   to "check for on disk" -- PATH is read at process start, not looked up
+   per call), so it stays the one piece left to a manual, printed
+   instruction. This whole distinction is also a deliberate break from the
+   conda mental model: conda's `activate` bundles "where files live" and
+   "what's on PATH" into one action with no durable state to manage at all,
+   while uv's tool-shim model keeps "where files live" (`UV_TOOL_DIR`/
+   `UV_TOOL_BIN_DIR`, and now `ADS_DEPLOY_TOOLENV_ROOT` via on-disk
+   detection) separate from "what's on PATH" (durable Windows system state,
+   deliberately left to one manual, reviewable admin action).
 3. **Protect the shared install with NTFS permissions, not a generation-time
    gate.** The asset worth protecting from an accidental edit by a novice
    user isn't the distributed `.vssettings` file (importing copies it in,
    so one user's copy can't affect anyone else) -- it's the shared install
    directory itself (the `ads-deploy`/pytmc/make/pre-commit binaries and the
    canonical vssettings file regenerated from it). `ADS_DEPLOY_SHARED_DIR`
-   should point under `C:\ProgramData`, whose default ACLs give ordinary
-   users read+execute but not write -- not a generic user-writable path like
-   `C:\Repos\...`. `ads-deploy vssettings` intentionally stays an ungated,
+   should be exactly `C:\ProgramData\ads-deploy` -- not a generic
+   user-writable path like `C:\Repos\...` -- both for `C:\ProgramData`'s
+   default ACLs (ordinary users get read+execute, not write) and for (2)'s
+   on-disk auto-detection, which checks this specific path.
+   `ads-deploy vssettings` intentionally stays an ungated,
    normal subcommand throughout: a power user who wants to experiment with
    a different tool/version can always run their own per-user
    `bootstrap.cmd` (unset `ADS_DEPLOY_SHARED_DIR`) and their own `ads-deploy

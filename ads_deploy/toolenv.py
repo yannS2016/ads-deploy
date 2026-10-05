@@ -18,12 +18,29 @@ PIN_FILENAME = "pathmunge.toml"
 
 
 def toolenv_root() -> pathlib.Path:
-    """Root directory under which each (tool, version) gets its own pixi project."""
+    """Root directory under which each (tool, version) gets its own pixi project.
+
+    Priority: an explicit ADS_DEPLOY_TOOLENV_ROOT override, then -- on
+    Windows -- the canonical shared location IF an admin has already
+    bootstrapped one there, then the per-user default. Checking for the
+    shared location on disk (rather than requiring a machine-wide
+    environment variable) means every other user's `ads-deploy` picks it up
+    automatically: no setx /M, no registry write, no admin rights needed by
+    anyone but whoever first created that shared directory (which already
+    needs admin rights anyway, to write under C:\\ProgramData at all -- see
+    DESIGN.md). This is why ADS_DEPLOY_SHARED_DIR's documented, default
+    value is specifically C:\\ProgramData\\ads-deploy: a different choice
+    still works via the explicit override below, but loses this auto-detection.
+    """
     override = os.environ.get("ADS_DEPLOY_TOOLENV_ROOT")
     if override:
         return pathlib.Path(override)
 
     if sys.platform == "win32":
+        program_data = os.environ.get("ProgramData", r"C:\ProgramData")
+        shared = pathlib.Path(program_data) / "ads-deploy" / "toolenvs"
+        if shared.is_dir():
+            return shared
         base = os.environ.get("LOCALAPPDATA", pathlib.Path.home() / "AppData" / "Local")
     else:
         base = os.environ.get("XDG_DATA_HOME", pathlib.Path.home() / ".local" / "share")
