@@ -18,6 +18,15 @@ class ToolSource:
     package: str  # the package name as published in that ecosystem
     channel: str = "conda-forge"  # only meaningful for ecosystem == "conda"
     extra_pypi: tuple = ()  # extra, unpinned PyPI deps; only meaningful for ecosystem == "pypi"
+    # Prepended to a version resolved from upstream (e.g. by `ads-deploy
+    # install <tool>` with no version -- see install.py's
+    # _resolve_latest_version) before it's used as a directory/pin name.
+    # pytmc's own ecosystem (PyPI) never reports a "v" itself, but every
+    # existing pytmc toolenv directory is named "v2.22.1"-style, matching
+    # its GitHub release tags -- without this, an auto-resolved "latest"
+    # would land in a second, differently-named directory ("2.22.1") next
+    # to an existing "v2.22.1" install of the identical release.
+    version_prefix: str = ""
 
 
 REGISTRY = {
@@ -30,7 +39,9 @@ REGISTRY = {
     # as a side effect of its much larger dependency set; this restores
     # that, deliberately, for this one tool. PySide6 (not PyQt5/6) to avoid
     # GPL licensing -- qtpy supports either as a backend transparently.
-    "pytmc": ToolSource(ecosystem="pypi", package="pytmc", extra_pypi=("qtpy", "PySide6")),
+    "pytmc": ToolSource(
+        ecosystem="pypi", package="pytmc", extra_pypi=("qtpy", "PySide6"), version_prefix="v",
+    ),
     "make": ToolSource(ecosystem="conda", package="make"),
 }
 

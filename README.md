@@ -36,12 +36,19 @@ Installation
    [Git for Windows](https://git-scm.com/download/win) (for `git`, and for
    the `sh.exe` GNU Make's Windows port looks for to run Makefile recipes).
 2. Clone this repository (e.g. to `C:\Repos\ads-deploy`).
-3. Set `PYTMC_VERSION` and `MAKE_VERSION` and run `bootstrap.cmd` from the
-   repo root:
-   - Command Prompt (`cmd.exe`):
+3. Run `bootstrap.cmd` from the repo root. `PYTMC_VERSION`/`MAKE_VERSION`
+   are optional -- set them to pin exact versions (recommended for any real
+   deployment, see "Managing tool versions" below for why); leave either
+   unset to install whatever's latest upstream right now, a convenience for
+   getting started:
+   - Command Prompt (`cmd.exe`), pinned:
      `set PYTMC_VERSION=v2.22.2 && set MAKE_VERSION=4.4.1 && bootstrap.cmd`
-   - PowerShell:
+   - Command Prompt (`cmd.exe`), latest:
+     `bootstrap.cmd`
+   - PowerShell, pinned:
      `$env:PYTMC_VERSION = "v2.22.2"; $env:MAKE_VERSION = "4.4.1"; .\bootstrap.cmd`
+   - PowerShell, latest:
+     `.\bootstrap.cmd`
 
    This will:
    - Install `ads-deploy` and `pre-commit` as uv tools (available globally,
@@ -215,7 +222,10 @@ already built elsewhere -- it doesn't build anything itself):
   `pathmunge.toml`'s `[tool-versions]` table at once (found by walking up
   from the current directory) -- the same file that pins what a project
   resolves also doubles as its install manifest, so there's only one file
-  to maintain.
+  to maintain. The version may also be omitted for a single tool (just
+  `ads-deploy install pytmc`) to install whatever's latest upstream right
+  now -- a convenience for getting started, not a substitute for pinning a
+  real deployment (see "Strict, reproducible installs" below).
 * `ads-deploy pathmunge <tool>/<version> [<tool2>/<version2> ...]` resolves
   one or more *already-installed* tool/versions and prints a single `PATH`
   fragment (all their executable directories joined together) to prepend --
@@ -253,7 +263,34 @@ v2.22.2
 already installed locally, then fails with a pointer to `install` only if
 nothing is installed at all. So a project with nothing pinned just uses
 whatever you last installed -- no `pathmunge.toml` is required for the
-common case.
+common case. This is a purely local, network-free lookup -- a different
+thing from `ads-deploy install <tool>` (no version)'s latest-*upstream*
+resolution described above; don't confuse the two "latest"s.
+
+### Strict, reproducible installs
+
+By default, `ads-deploy install <tool>/<version>` only pins the TOP-level
+package (e.g. `pytmc = "==2.22.1"`) -- every transitive dependency still
+resolves fresh each time, so two machines (or the same machine at two
+different points in time) can end up with different transitive versions
+despite "the same pytmc version." For genuine bit-for-bit reproducibility
+across every TwinCAT dev machine, commit a `pixi.lock` for a tool/version
+once:
+```
+$ uv run python -m ads_deploy install pytmc/v2.22.1 --save-lock
+$ git add ads_deploy/lockfiles && git commit -m "Add pixi.lock for pytmc/v2.22.1"
+```
+This is a **maintainer-only step, run from an actual `ads-deploy` git
+checkout** (not the shared/production `uv tool install`-ed copy -- that
+copy lives in `site-packages`, not anywhere git tracks, so saving a lock
+there would be silently pointless). Once committed, the lock file ships
+inside the `ads_deploy` package itself (packaged automatically, like the
+vssettings templates), so every future install of that exact `tool/version`
+-- on any machine, by any user, with no flag -- automatically installs from
+that exact locked dependency set (`pixi install --locked`, which aborts
+loudly if the lock and manifest ever drift out of sync, rather than
+silently re-resolving). `--save-lock` only needs to be run again when
+pinning a *new* tool/version for the first time.
 
 A project can pin its own version explicitly by placing a `pathmunge.toml`
 next to its `.sln`:

@@ -109,20 +109,19 @@ IF NOT "%ADS_DEPLOY_SHARED_DIR%"=="" (
     echo Installing to the shared location %ADS_DEPLOY_SHARED_DIR% ...
 )
 
-IF "%PYTMC_VERSION%"=="" (
-    echo Set PYTMC_VERSION to the pytmc version you want to pin, e.g.:
-    echo     cmd.exe:     set PYTMC_VERSION=v2.22.2 ^&^& bootstrap.cmd
-    echo     PowerShell:  $env:PYTMC_VERSION = "v2.22.2"; .\bootstrap.cmd
-    EXIT /B 1
-)
-
-IF "%MAKE_VERSION%"=="" (
-    echo Set MAKE_VERSION to the GNU Make version to pin ^(from conda-forge^),
-    echo e.g. 4.4.1:
-    echo     cmd.exe:     set MAKE_VERSION=4.4.1 ^&^& bootstrap.cmd
-    echo     PowerShell:  $env:MAKE_VERSION = "4.4.1"; .\bootstrap.cmd
-    EXIT /B 1
-)
+REM PYTMC_VERSION/MAKE_VERSION are OPTIONAL: set them to pin an exact
+REM version (recommended for any real deployment -- see README's note on
+REM pixi.lock strictness), e.g.:
+REM     cmd.exe:     set PYTMC_VERSION=v2.22.2 ^&^& set MAKE_VERSION=4.4.1 ^&^& bootstrap.cmd
+REM     PowerShell:  $env:PYTMC_VERSION = "v2.22.2"; $env:MAKE_VERSION = "4.4.1"; .\bootstrap.cmd
+REM Leave either unset to install whatever's latest upstream right now --
+REM a convenience for getting started, not a substitute for pinning.
+REM Computed here, OUTSIDE any block -- see the cmd.exe block-freezing
+REM gotcha explained at length further up this file.
+SET "PytmcSpec=pytmc"
+IF NOT "%PYTMC_VERSION%"=="" SET "PytmcSpec=pytmc/%PYTMC_VERSION%"
+SET "MakeSpec=make"
+IF NOT "%MAKE_VERSION%"=="" SET "MakeSpec=make/%MAKE_VERSION%"
 
 echo Installing ads-deploy as a uv tool from %RepoRoot% ...
 uv tool install --force "%RepoRoot%"
@@ -163,19 +162,19 @@ IF %ERRORLEVEL% NEQ 0 (
 )
 
 echo.
-echo Installing pytmc %PYTMC_VERSION% into its own isolated environment ...
-ads-deploy install pytmc/%PYTMC_VERSION%
+echo Installing %PytmcSpec% into its own isolated environment ...
+ads-deploy install %PytmcSpec%
 IF %ERRORLEVEL% NEQ 0 (
-    echo ** FAILED: could not install pytmc/%PYTMC_VERSION%. **
+    echo ** FAILED: could not install %PytmcSpec%. **
     echo Check that this is a real pytmc release tag/version.
     EXIT /B 1
 )
 
 echo.
-echo Installing make %MAKE_VERSION% into its own isolated environment ...
-ads-deploy install make/%MAKE_VERSION%
+echo Installing %MakeSpec% into its own isolated environment ...
+ads-deploy install %MakeSpec%
 IF %ERRORLEVEL% NEQ 0 (
-    echo ** FAILED: could not install make/%MAKE_VERSION%. **
+    echo ** FAILED: could not install %MakeSpec%. **
     echo Check that this is a real conda-forge make version.
     EXIT /B 1
 )

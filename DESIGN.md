@@ -462,3 +462,97 @@ this once for everyone" (see git history on `mnt_new_design` around the
    a different tool/version can always run their own per-user
    `bootstrap.cmd` (unset `ADS_DEPLOY_SHARED_DIR`) and their own `ads-deploy
    vssettings`, fully independent of the shared install.
+
+## Committed pixi.lock files for bit-for-bit reproducible installs
+
+`ads-deploy install <tool>/<version>` only ever pinned the TOP-level
+package (e.g. `pytmc = "==2.22.1"`) -- every transitive dependency resolved
+fresh on every `pixi install`, so two different TwinCAT dev machines (or
+the same machine at two different points in time, if upstream indexes
+moved) could end up with different transitive versions despite nominally
+having "the same pytmc version." Requested explicitly: lock dependencies
+strictly enough to reproduce the exact same environment everywhere, the way
+a real `pixi.lock` (not just a `pixi.toml`) does.
+
+Researched directly against pixi's own CLI/concept docs before
+implementing (not guessed): `pixi install --locked` validates the lock file
+is up to date with the manifest and **aborts loudly** if not -- no silent
+re-resolve, no silent lock rewrite. `--frozen` is the other option pixi
+offers and was deliberately NOT used here: it installs from the lock file
+as-is with zero validation against the manifest, which would let a
+registry change (e.g. bumping a pin in `tool_registry.py`) and its lock
+file silently drift apart -- exactly the kind of silent divergence this
+project avoids everywhere else (the manifest-drift rebuild already in
+`install.py`, the `IF ERRORLEVEL 1` fix elsewhere in this doc). `--locked`
+is the one that fails loudly, consistent with that pattern.
+
+**Lock files are committed inside the package itself**,
+`ads_deploy/lockfiles/<tool>/<version>/pixi.lock` -- not a top-level
+directory -- specifically so they ship in the built wheel for free.
+Hatchling already includes every non-`.py` file under `ads_deploy/`
+(that's how `templates/*.jinja2` and `windows/*.cmd` already ship), so no
+`pyproject.toml` change was needed to make this work.
+
+**Generation (`--save-lock`) and consumption are intentionally
+asymmetric.** Consuming an existing committed lock is fully automatic --
+`install()` always uses `--locked` whenever a committed lock exists for
+that exact `tool/version`, no flag required. Generating one is an explicit,
+opt-in `--save-lock` flag, and deliberately NOT the default, because
+`ads-deploy install` runs from wherever the *currently installed*
+`ads_deploy` package happens to live -- for nearly every real invocation
+(the shared `C:\ProgramData\ads-deploy` install, or any ordinary per-user
+install) that's a `site-packages` copy, not the git checkout. Writing a
+lock file there would be silently pointless (never reaches git, discarded
+on the next reinstall from the wheel) at best, and could hit a permissions
+error at worst (the shared install directory is deliberately admin-write
+-only -- see the previous section). Making it the unconditional default
+would make ordinary installs either fail or silently "succeed" at
+something meaningless. `--save-lock` is really "yes, I'm the maintainer,
+pinning a new tool/version from source right now" -- the same category of
+action as editing `tool_registry.py` or bumping `PYTMC_VERSION`, and it
+only needs to be run once per tool/version: after it's committed, every
+future install of that exact version, anywhere, picks it up with no flag.
+
+**`--save-lock` always forces a fresh resolve**, even if a committed lock
+already exists -- it never starts from (or trusts) a possibly-stale
+previous one, since the point of running it is to produce a current,
+regenerable lock to commit, not to re-save unchanged stale data.
+
+**Accepted limitation, not solved:** if a maintainer adds/updates a
+committed lock for a tool/version that's already installed elsewhere with
+a matching manifest, that existing install's fast path (manifest matches,
+environment already valid -- see `_is_valid_install()`) won't retroactively
+re-verify against the new lock without a `--force` rebuild. The existing
+environment is still valid; it's just not provably hash-locked after the
+fact until rebuilt. Standard staleness category for any lock-file system,
+not worth extra complexity to close.
+
+## Default-to-latest installs, kept distinct from "latest installed"
+
+`ads-deploy install <tool>` with no version used to hard-fail
+(`bootstrap.cmd` likewise required `PYTMC_VERSION`/`MAKE_VERSION` to be
+set). Omitting the version now means "install whatever's latest upstream
+right now" -- a convenience for getting started, never a substitute for
+pinning a real deployment (which still works exactly as before, and is
+what lock-file strictness above actually protects).
+
+This is a genuinely different "latest" than `toolenv.latest_installed_version()`
+(used by `pathmunge`/`build`'s own implicit resolution) -- that one only
+ever looks at what's already installed *locally* and is deliberately
+network-free, by design, so routine build/lint/debug/summary calls never
+depend on network access. The new one queries the real upstream ecosystem
+(PyPI's JSON API for `pypi`-ecosystem tools, conda-forge via
+`api.anaconda.org` for `conda`-ecosystem tools) over the network, and only
+ever runs for an explicit `ads-deploy install` invoked with no version.
+Keep these two "latest"s conceptually separate -- conflating them would
+either make routine builds silently depend on network access, or make
+`install`'s one-time convenience silently stale.
+
+**`ToolSource` gained a `version_prefix` field** (`tool_registry.py`) to
+keep an auto-resolved "latest" landing in the *same* toolenv directory as a
+manually-pinned version of the identical release. PyPI/conda-forge never
+report a `v` prefix themselves, but every existing pytmc toolenv directory
+is named `v2.22.1`-style, matching its GitHub release tags -- without this,
+resolving "latest" for pytmc would create a second, differently-named
+directory (`toolenvs/pytmc/2.22.1`) next to an existing `v2.22.1` install
+of the identical release, rather than recognizing them as the same thing.
