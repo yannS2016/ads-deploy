@@ -1,0 +1,61 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ads-deploy"
+dynamic = ["version"]
+description = "TwinCAT ADS EPICS IOC deployment tools"
+readme = "README.md"
+license = "BSD-3-Clause"
+authors = [{ name = "SLAC National Accelerator Laboratory" }]
+requires-python = ">=3.10"
+dependencies = [
+    "pytmc>=2.19.0",
+    "jinja2>=3.0",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+]
+
+[project.urls]
+Repository = "https://github.com/pcdshub/ads-deploy"
+
+[project.scripts]
+ads-deploy = "ads_deploy.__main__:main"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+git_describe_command = "git describe --dirty --tags --long --match v*"
+local_scheme = "no-local-version"
+
+[tool.hatch.build.targets.wheel]
+# Non-.py files under ads_deploy/ (templates/*.rst, windows/*.cmd|*.sh,
+# default_nc_params.xml) are included automatically since they live inside
+# this package directory -- no separate force-include needed.
+packages = ["ads_deploy"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/ads_deploy",
+    "/README.md",
+    "/LICENSE",
+]
+
+[dependency-groups]
+dev = [
+    "coverage",
+    "flake8",
+    "pre-commit",
+    "pytest",
+    "sphinx",
+    "ipython",
+    "matplotlib",
+    "numpydoc",
+    "sphinx-copybutton",
+    "sphinx_rtd_theme",
+]

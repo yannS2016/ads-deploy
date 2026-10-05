@@ -1,6 +1,6 @@
-from ._version import get_versions
+from importlib.metadata import PackageNotFoundError, version
 
-# from . import solution
-
-__version__ = get_versions()['version']
-del get_versions
+try:
+    __version__ = version("ads-deploy")
+except PackageNotFoundError:
+    __version__ = "0.0.0+unknown"

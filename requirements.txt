@@ -1,4 +1,0 @@
-pytmc>=2.19.0
-typhos>=4.2.0
-jinja2
-versioneer

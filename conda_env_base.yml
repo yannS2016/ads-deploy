@@ -1,7 +1,0 @@
-epics-base
-happi
-ipython>=8.36.0
-pydm>=1.27.0
-python==3.12.10
-pytmc>=2.18.2
-typhos>=4.2.0
