@@ -1,4 +1,3 @@
-import distutils.version
 import logging
 import os
 import pathlib
@@ -10,8 +9,29 @@ import pytmc
 logger = logging.getLogger(__name__)
 
 ADS_IOC_LOCATION = pathlib.Path(
-    os.environ.get('ADS_IOC_LOCATION', '/reg/g/pcds/epics/ioc/common/ads-ioc')
+    os.environ.get('ADS_IOC_LOCATION', r'C:\Repos\ads-ioc')
 )
+
+
+def parse_version_tag(name):
+    """
+    Parse a version-like tag or directory name (e.g. ``R2.1.3``, ``v1.0``)
+    into a tuple of ints suitable for numeric sorting/``max()``.
+
+    Returns ``None`` if ``name`` isn't a purely-numeric dotted version (e.g.
+    ``master``, a pre-release tag like ``R2.1.3-rc1``, or any other
+    non-version ref/tag) -- every part must be numeric so the result is
+    always safe to compare/sort against another parsed tuple.
+    """
+    try:
+        version = name.lstrip('Rv').replace('-', '.')
+        parts = version.split('.')
+        if parts and all(part.isdigit() for part in parts):
+            return tuple(int(part) for part in parts)
+    except Exception:
+        ...
+
+    return None
 
 
 def get_latest_ads_ioc():
@@ -31,18 +51,9 @@ def get_latest_ads_ioc():
     if (ADS_IOC_LOCATION / 'iocBoot' / 'templates').exists():
         return ADS_IOC_LOCATION
 
-    def get_version(path):
-        try:
-            version = path.name.lstrip('Rv').replace('-', '.')
-            version = tuple(distutils.version.LooseVersion(version).version)
-            if isinstance(version[0], int):
-                return version
-        except Exception:
-            ...
-
     paths = {
-        get_version(path): path for path in ADS_IOC_LOCATION.iterdir()
-        if get_version(path) is not None
+        parse_version_tag(path.name): path for path in ADS_IOC_LOCATION.iterdir()
+        if parse_version_tag(path.name) is not None
     }
 
     if not paths:
