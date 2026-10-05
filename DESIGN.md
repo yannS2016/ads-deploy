@@ -541,6 +541,17 @@ environment is still valid; it's just not provably hash-locked after the
 fact until rebuilt. Standard staleness category for any lock-file system,
 not worth extra complexity to close.
 
+**`uv.lock` (committed at the repo root) is a separate, unrelated lock
+file -- don't conflate the two.** `ads_deploy/lockfiles/*/pixi.lock` locks
+the *tools ads-deploy provisions* for TwinCAT builds (pytmc, make); `uv.lock`
+is `uv`'s own standard lock file for *ads-deploy's own* dependencies
+(`pytmc>=2.19.0`, `jinja2>=3.0`, the dev dependency group), generated
+automatically by `uv run`/`uv sync` in this project. It's committed for the
+same reproducibility reason as everything else in this section -- `uv`'s
+own guidance is to commit it for an application (which ads-deploy is) --
+but it's resolved and consumed entirely by `uv` itself; `install.py` never
+reads or writes it.
+
 ## Default-to-latest installs, kept distinct from "latest installed"
 
 `ads-deploy install <tool>` with no version used to hard-fail
