@@ -183,10 +183,19 @@ def install(tool: str, version: str, force: bool = False) -> None:
     manifest_path.write_text(manifest)
 
     logger.info("Resolving and installing %s/%s via pixi at %s", tool, version, project)
-    subprocess.run(
-        ["pixi", "install", "--manifest-path", str(manifest_path)],
-        check=True,
-    )
+    try:
+        subprocess.run(
+            ["pixi", "install", "--manifest-path", str(manifest_path)],
+            check=True,
+        )
+    except subprocess.CalledProcessError:
+        # Don't leave a broken, pixi.toml-only directory behind on failure
+        # (e.g. a typo'd version that doesn't exist upstream) -- confirmed
+        # directly: `toolenv.latest_installed_version()` now skips installs
+        # with no real environment, but a leftover failed directory still
+        # wastes disk and shows up (misleadingly) in `ads-deploy versions`.
+        shutil.rmtree(project, ignore_errors=True)
+        raise
     _ensure_python3_shim(project)
 
 

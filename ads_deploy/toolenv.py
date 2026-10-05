@@ -132,6 +132,16 @@ def latest_installed_version(tool: str) -> str:
     `ads-deploy versions`), or ``None`` if nothing is installed yet. Never
     touches the network -- this is "latest of what you already have", not
     "latest on PyPI".
+
+    Only considers versions with a real, usable environment (a non-empty
+    `bin_dirs()`) -- confirmed directly against a real failure: a version
+    directory can exist with nothing but a `pixi.toml` inside if an earlier
+    `ads-deploy install` attempt failed partway through (e.g. a typo'd
+    version that doesn't actually exist upstream -- `project.mkdir()` +
+    `manifest_path.write_text()` both run in `install.py` *before* the
+    `pixi install` subprocess that can fail). Without this check, such a
+    broken leftover with a numerically higher version string would always
+    be preferred over the real, working installation.
     """
     tool_root = toolenv_root() / tool
     if not tool_root.exists():
@@ -139,7 +149,8 @@ def latest_installed_version(tool: str) -> str:
 
     versioned = {
         path.name: util.parse_version_tag(path.name)
-        for path in tool_root.iterdir() if path.is_dir()
+        for path in tool_root.iterdir()
+        if path.is_dir() and bin_dirs(project_dir(tool, path.name))
     }
     versioned = {name: v for name, v in versioned.items() if v is not None}
     if not versioned:
