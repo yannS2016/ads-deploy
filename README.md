@@ -44,8 +44,8 @@ Installation
      `$env:PYTMC_VERSION = "v2.22.2"; $env:MAKE_VERSION = "4.4.1"; .\bootstrap.cmd`
 
    This will:
-   - Install `ads-deploy` itself as a uv tool (`ads-deploy` becomes available
-     globally, no activation needed).
+   - Install `ads-deploy` and `pre-commit` as uv tools (available globally,
+     no activation needed).
    - Install the pinned pytmc (from PyPI) and make (from conda-forge), each
      into its own isolated pixi environment.
    - Fetch the `ads-ioc` common module.
@@ -58,30 +58,57 @@ Visual Studio's External Tools settings are per-user (confirmed: there's no
 "install once for every account" option), so step 4 is a per-user action
 regardless of how ads-deploy itself was installed. `external-tools.vssettings`
 also bakes in `ads-deploy`'s *resolved path* at generation time (Visual
-Studio's Command field does not do a PATH search the way `cmd.exe` does), so
-regenerate it (`ads-deploy vssettings`) on each machine rather than copying
-one machine's generated file to another.
+Studio's Command field does not do a PATH search the way `cmd.exe` does).
+For a standalone, per-machine install this means regenerating it
+(`ads-deploy vssettings`) on each machine rather than copying one machine's
+generated file to another -- but for a *shared* install (see below), the
+one file generated against that shared location is exactly what should be
+copied/distributed to every other user on that same machine.
 
 ### Installing for all users on a shared machine
 
-By default, step 3 installs `ads-deploy` (and the pinned pytmc/make) under
-the *current user's own profile* (`uv tool install`'s own default) -- other
-accounts on the same machine won't see it. For a shared, all-users install,
-set `ADS_DEPLOY_SHARED_DIR` before running `bootstrap.cmd`, as an
-Administrator:
+By default, step 3 installs `ads-deploy` (and the pinned pytmc/make, plus
+`pre-commit`) under the *current user's own profile* (`uv tool install`'s
+own default) -- other accounts on the same machine won't see it. For a
+shared install, set `ADS_DEPLOY_SHARED_DIR` before running `bootstrap.cmd`,
+as an Administrator:
 ```
 set ADS_DEPLOY_SHARED_DIR=C:\ProgramData\ads-deploy
 ```
-This points `uv`'s own `UV_TOOL_DIR`/`UV_TOOL_BIN_DIR` at that shared
-location instead. `bootstrap.cmd` deliberately does **not** also rewrite the
-system `PATH` itself -- `setx /M PATH ...` has a hard 1024-character limit
-and silently *truncates* longer values, which can corrupt the whole
-machine's PATH. Instead it prints the one command to add the shared `bin`
-directory, for an admin to review and run themselves (a one-time step; once
-it's on the system PATH, every user's `ads-deploy`/`pytmc`/`make` just
-resolve). Each user still separately imports `external-tools.vssettings`
-(step 4) and can run `ads-deploy vssettings` themselves if their own Visual
-Studio needs it regenerated.
+Use a location under `C:\ProgramData`, not an ordinary user-writable
+directory: its default ACLs give regular accounts read+execute but not
+write, which is what keeps a curious or novice user from corrupting the
+shared install -- this is deliberate, not incidental, since settings files
+have been fiddled with by accident before.
+
+**The actual zero-command outcome for other users is the generated
+`external-tools.vssettings` file, not PATH.** `bootstrap.cmd` regenerates it
+at the end of a shared-install run with `Command` baked in as the *shared*
+`ads-deploy`'s resolved path. Importing a `.vssettings` file copies its
+contents into Visual Studio's own per-user settings store -- it does not
+stay linked to the file it came from -- so this one generated file can be
+handed to every other user on the machine (checked into the repo, dropped
+on a network share, emailed, whatever) to import as-is. They do not run
+`bootstrap.cmd`, `ads-deploy vssettings`, or anything else themselves; they
+only do the one unavoidable GUI step everyone does regardless of install
+mode (step 4 below -- VS External Tools settings are confirmed per-user,
+with no all-users import option).
+
+Extending the system `PATH` is a **separate, optional** step, only needed
+for people who also want `ads-deploy`/`pytmc`/`make`/`pre-commit` available
+from a plain terminal outside of Visual Studio -- the VS External Tools
+workflow above never depends on PATH, since `Command` is already a resolved
+absolute path. `bootstrap.cmd` deliberately does not script this itself --
+`setx /M PATH ...` has a hard 1024-character limit and silently *truncates*
+longer values, which can corrupt the whole machine's PATH -- and instead
+prints the one PowerShell command for an admin to review and run themselves
+if they want it, once.
+
+A user who wants to experiment with a different tool/version independently
+of the shared install can simply run their own **per-user** `bootstrap.cmd`
+(leave `ADS_DEPLOY_SHARED_DIR` unset) and their own `ads-deploy vssettings`
+-- this produces a fully separate, personal install and settings file with
+no effect on, or coordination with, the shared one.
 
 VS "External Tools" workflow
 =============================

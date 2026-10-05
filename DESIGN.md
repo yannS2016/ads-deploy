@@ -351,6 +351,56 @@ parent shell's environment, which is the whole reason these exist).
 
 `pre-commit` (this repo's own `.pre-commit-config.yaml` hooks -- unrelated to
 building TwinCAT IOCs) used to come for free via the old shared conda
-environment and had no home in the new design. It's a plain PyPI package
-with no conda-forge requirement, so it was added to `pyproject.toml`'s
-`[dependency-groups] dev` list alongside `pytest`/`flake8`/`coverage`.
+environment: the conda env was shared and `PATH`-resolved, so any
+contributor on the machine could just invoke `pre-commit` with no install
+step of their own. That "zero personal setup" property is worth preserving,
+not just the package availability -- so `pre-commit` is installed the same
+way as `ads-deploy` itself in `bootstrap.cmd`, via `uv tool install
+pre-commit` into the same `UV_TOOL_DIR`/`UV_TOOL_BIN_DIR` (shared, when
+`ADS_DEPLOY_SHARED_DIR` is set). It's also kept in `pyproject.toml`'s
+`[dependency-groups] dev` list alongside `pytest`/`flake8`/`coverage`, for
+anyone managing their own isolated dev venv -- but the shared `uv tool
+install` is the primary path for "just works for everyone on this machine."
+
+## Shared install: vssettings distribution, PATH, and permissions
+
+Three related decisions from reasoning through "how does an admin install
+this once for everyone" (see git history on `mnt_new_design` around the
+`ADS_DEPLOY_SHARED_DIR` introduction):
+
+1. **The vssettings file, not PATH, is what makes VS usage zero-command for
+   other users.** `ads_deploy/vssettings.py` bakes `Command` in as a static,
+   already-resolved absolute path (`shutil.which()` at generation time) --
+   Visual Studio's External Tools never re-resolves it via PATH, at import
+   time or at run time, and importing a `.vssettings` file copies its
+   contents into VS's own per-user settings store rather than keeping a live
+   link to the source file. So one file generated against the shared
+   install location can be handed to every other user to import as-is.
+   Don't "fix" this by having each user run `ads-deploy vssettings`
+   themselves -- that reintroduces exactly the per-person command this is
+   trying to eliminate, and would additionally require PATH to already be
+   extended for that user just so `ads-deploy` itself resolves.
+2. **System `PATH` mutation stays a manual, printed instruction, never
+   scripted.** `setx /M PATH ...` has a hard 1024-character limit and
+   silently truncates longer values, risking corruption of the whole
+   machine's PATH -- and it's no longer even necessary for the VS workflow
+   per (1), only for people who also want these tools from a plain
+   terminal. This is also a deliberate break from the conda mental model:
+   conda's `activate` bundles "where files live" and "what's on PATH" into
+   one action with no durable PATH state to manage, while uv's tool-shim
+   model keeps them separate -- `UV_TOOL_DIR`/`UV_TOOL_BIN_DIR` are safe,
+   scriptable values, but PATH itself is durable Windows system state best
+   left to one manual, reviewable admin action.
+3. **Protect the shared install with NTFS permissions, not a generation-time
+   gate.** The asset worth protecting from an accidental edit by a novice
+   user isn't the distributed `.vssettings` file (importing copies it in,
+   so one user's copy can't affect anyone else) -- it's the shared install
+   directory itself (the `ads-deploy`/pytmc/make/pre-commit binaries and the
+   canonical vssettings file regenerated from it). `ADS_DEPLOY_SHARED_DIR`
+   should point under `C:\ProgramData`, whose default ACLs give ordinary
+   users read+execute but not write -- not a generic user-writable path like
+   `C:\Repos\...`. `ads-deploy vssettings` intentionally stays an ungated,
+   normal subcommand throughout: a power user who wants to experiment with
+   a different tool/version can always run their own per-user
+   `bootstrap.cmd` (unset `ADS_DEPLOY_SHARED_DIR`) and their own `ads-deploy
+   vssettings`, fully independent of the shared install.
