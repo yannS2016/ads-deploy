@@ -93,7 +93,26 @@ REM testing, same gotcha fixed elsewhere in this project's .cmd files.
 IF NOT "%ADS_DEPLOY_SHARED_DIR%"=="" (
     SET "UV_TOOL_DIR=%ADS_DEPLOY_SHARED_DIR%\uv-tools"
     SET "UV_TOOL_BIN_DIR=%ADS_DEPLOY_SHARED_DIR%\bin"
+    REM UV_TOOL_DIR/UV_TOOL_BIN_DIR only affect `uv tool install` (ads-deploy,
+    REM pre-commit themselves) -- only THIS script's own run needs them, so a
+    REM plain session-local SET is enough (see the long comment above).
+    REM
+    REM ADS_DEPLOY_TOOLENV_ROOT is different: it redirects the per-(tool,
+    REM version) pixi environments `ads-deploy install` creates for
+    REM pytmc/make (ads_deploy/toolenv.py's toolenv_root(), per-user AppData
+    REM by default). Unlike the vssettings Command path, OTHER users' later
+    REM `ads-deploy build`/`lint`/etc. calls (spawned fresh by Visual Studio,
+    REM with none of this script's session state) also need to see this
+    REM variable -- so it must be set SYSTEM-WIDE, not just for this run.
+    REM setx is safe to use here (unlike for PATH): it's one short, standalone
+    REM string, nowhere near setx's 1024-character truncation limit.
+    SET "ADS_DEPLOY_TOOLENV_ROOT=%ADS_DEPLOY_SHARED_DIR%\toolenvs"
     echo Installing to the shared location %ADS_DEPLOY_SHARED_DIR% ...
+    setx /M ADS_DEPLOY_TOOLENV_ROOT "%ADS_DEPLOY_TOOLENV_ROOT%" >nul
+    IF %ERRORLEVEL% NEQ 0 (
+        echo ** FAILED: could not set ADS_DEPLOY_TOOLENV_ROOT system-wide. Run this script as Administrator. **
+        EXIT /B 1
+    )
 )
 
 IF "%PYTMC_VERSION%"=="" (
@@ -192,6 +211,13 @@ IF NOT "%ADS_DEPLOY_SHARED_DIR%"=="" (
     echo %RepoRoot%\external-tools.vssettings to every other user on this
     echo machine to import as-is -- they do not need to run this script, or
     echo any command, themselves.
+    echo.
+    echo NOTE: ADS_DEPLOY_TOOLENV_ROOT was just set SYSTEM-WIDE so other
+    echo users' VS-launched `ads-deploy build`/`lint`/etc. calls can find the
+    echo shared pytmc/make environments. Like any system environment
+    echo variable change, this only takes effect for OTHER users the next
+    echo time they log in ^(not retroactively for an already-open session^)
+    echo -- standard Windows behavior, nothing this script can do about it.
     echo.
     echo Optional: if people also want `ads-deploy`/`pytmc`/`make`/
     echo `pre-commit` available from a plain terminal ^(not needed for the

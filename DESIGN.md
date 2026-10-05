@@ -381,16 +381,28 @@ this once for everyone" (see git history on `mnt_new_design` around the
    trying to eliminate, and would additionally require PATH to already be
    extended for that user just so `ads-deploy` itself resolves.
 2. **System `PATH` mutation stays a manual, printed instruction, never
-   scripted.** `setx /M PATH ...` has a hard 1024-character limit and
-   silently truncates longer values, risking corruption of the whole
-   machine's PATH -- and it's no longer even necessary for the VS workflow
-   per (1), only for people who also want these tools from a plain
-   terminal. This is also a deliberate break from the conda mental model:
-   conda's `activate` bundles "where files live" and "what's on PATH" into
-   one action with no durable PATH state to manage, while uv's tool-shim
-   model keeps them separate -- `UV_TOOL_DIR`/`UV_TOOL_BIN_DIR` are safe,
-   scriptable values, but PATH itself is durable Windows system state best
-   left to one manual, reviewable admin action.
+   scripted -- but `ADS_DEPLOY_TOOLENV_ROOT` IS scripted via `setx /M`.**
+   These look similar (both are "make the shared location visible to other
+   users") but have opposite risk profiles. `setx /M PATH ...` has a hard
+   1024-character limit and silently truncates longer values, risking
+   corruption of the whole machine's PATH -- and it's no longer even
+   necessary for the VS workflow per (1), only for people who also want
+   these tools from a plain terminal, so it's left manual. `setx /M
+   ADS_DEPLOY_TOOLENV_ROOT ...` is one short, standalone path string, nowhere
+   near that limit -- and unlike PATH, it's not optional: every other user's
+   VS-launched `ads-deploy build`/`lint`/etc. calls read it (via
+   `ads_deploy/toolenv.py`'s `toolenv_root()`) to find the shared pytmc/make
+   pixi environments; without it they'd silently fall back to each user's
+   own, empty, per-user `%LOCALAPPDATA%` location and fail. (As with any
+   system environment variable, this only takes effect for other users at
+   their next login -- not retroactively, nothing scriptable can change
+   that.) This whole distinction is also a deliberate break from the conda
+   mental model: conda's `activate` bundles "where files live" and "what's
+   on PATH" into one action with no durable state to manage at all, while
+   uv's tool-shim model keeps "where files live" (`UV_TOOL_DIR`/
+   `UV_TOOL_BIN_DIR`, `ADS_DEPLOY_TOOLENV_ROOT` -- safe, scriptable) separate
+   from "what's on PATH" (durable Windows system state, deliberately left to
+   one manual, reviewable admin action).
 3. **Protect the shared install with NTFS permissions, not a generation-time
    gate.** The asset worth protecting from an accidental edit by a novice
    user isn't the distributed `.vssettings` file (importing copies it in,

@@ -94,6 +94,18 @@ only do the one unavoidable GUI step everyone does regardless of install
 mode (step 4 below -- VS External Tools settings are confirmed per-user,
 with no all-users import option).
 
+`bootstrap.cmd` also sets `ADS_DEPLOY_TOOLENV_ROOT` **system-wide** via
+`setx /M` when `ADS_DEPLOY_SHARED_DIR` is set -- unlike `PATH`, this is a
+single short, standalone string (nowhere near `setx`'s 1024-character
+truncation limit), so scripting it is safe. This one *is* required, not
+optional: it's what every other user's VS-launched `ads-deploy build`/
+`lint`/etc. calls use to find the shared pytmc/make pixi environments
+(`ads_deploy/toolenv.py`'s `toolenv_root()`, per-user `%LOCALAPPDATA%` by
+default) -- without it, those calls would silently fall back to each user's
+own, empty, per-user location and fail. Like any system environment
+variable change, it only takes effect for other users at their *next*
+login, not retroactively in an already-open session.
+
 Extending the system `PATH` is a **separate, optional** step, only needed
 for people who also want `ads-deploy`/`pytmc`/`make`/`pre-commit` available
 from a plain terminal outside of Visual Studio -- the VS External Tools
