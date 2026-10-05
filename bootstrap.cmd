@@ -109,7 +109,16 @@ IF NOT "%ADS_DEPLOY_SHARED_DIR%"=="" (
     SET "ADS_DEPLOY_TOOLENV_ROOT=%ADS_DEPLOY_SHARED_DIR%\toolenvs"
     echo Installing to the shared location %ADS_DEPLOY_SHARED_DIR% ...
     setx /M ADS_DEPLOY_TOOLENV_ROOT "%ADS_DEPLOY_TOOLENV_ROOT%" >nul
-    IF %ERRORLEVEL% NEQ 0 (
+    REM `IF %ERRORLEVEL% NEQ 0` would NOT work here: this whole IF is nested
+    REM inside the outer ADS_DEPLOY_SHARED_DIR block, and cmd.exe pre-expands
+    REM every %VAR% in a parenthesized block once, at the moment the block is
+    REM ENTERED -- so %ERRORLEVEL% here would stay frozen at its pre-setx
+    REM value (0) no matter what setx actually returns, silently masking a
+    REM real failure (confirmed directly: this exact bug shipped and hid a
+    REM genuine "run as Administrator" failure). `IF ERRORLEVEL 1` is a
+    REM special conditional form, not a %...% substitution -- cmd.exe
+    REM evaluates it live, immune to the freezing.
+    IF ERRORLEVEL 1 (
         echo ** FAILED: could not set ADS_DEPLOY_TOOLENV_ROOT system-wide. Run this script as Administrator. **
         EXIT /B 1
     )
