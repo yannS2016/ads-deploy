@@ -292,6 +292,40 @@ loudly if the lock and manifest ever drift out of sync, rather than
 silently re-resolving). `--save-lock` only needs to be run again when
 pinning a *new* tool/version for the first time.
 
+### Testing a fix that isn't on PyPI/conda-forge yet
+
+Sometimes you need to try an unreleased fix to a managed tool (e.g. a
+`pytmc` bug fixed upstream but not yet in a tagged release) against a real
+build, before it's installable through the normal `ads-deploy install
+<tool>/<version>` path. For a `pypi`-ecosystem tool, reinstall straight
+into the already-provisioned toolenv from a local checkout or a git URL,
+targeting that toolenv's own Python directly:
+```
+uv pip install --python <toolenv_root>/<tool>/<version>/.pixi/envs/default/python.exe --no-deps --force-reinstall <local-path-or-git-url>
+```
+e.g.
+```
+uv pip install --python C:\ProgramData\ads-deploy\toolenvs\pytmc\v2.22.1\.pixi\envs\default\python.exe --no-deps --force-reinstall C:\Users\yanns\Documents\pytmc
+```
+- `--python` targets the exact interpreter `ads-deploy build`/`lint`/etc.
+  actually use -- this exercises the real pipeline, not a side experiment.
+- `--no-deps` avoids re-resolving/touching the toolenv's other pinned
+  dependencies (`qtpy`, `PySide6`, ...) -- only swaps the one package.
+- `--force-reinstall` ensures it overwrites what's already there.
+
+This is a **temporary, manual override** -- it doesn't touch the toolenv's
+own recorded `pixi.toml`/`pixi.lock`, so the next `ads-deploy install
+<tool>/<version> --force` (or any manifest-drift rebuild) silently
+overwrites it back to the real pinned release. Don't mistake it for a
+lasting state; once the fix actually ships in a real release, pin that
+version normally instead.
+
+This pattern is specifically for `pypi`-ecosystem tools (a plain Python
+package reinstall). A `conda`-ecosystem tool (like `make`) that needed the
+same kind of pre-release testing would need a different mechanism entirely
+(building a local conda package and pointing pixi at a local channel) --
+not something this project has needed or validated yet.
+
 A project can pin its own version explicitly by placing a `pathmunge.toml`
 next to its `.sln`:
 
