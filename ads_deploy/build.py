@@ -66,10 +66,18 @@ def _build_one_ioc(
         logger.info("* Cleaning old build directory...")
         shutil.rmtree(build_dir)
 
+    # Use a consistent forward-slash path for IOC_TOP/TEMPLATE_PATH rather
+    # than letting str(ads_ioc_location) (backslashes, on Windows) collide
+    # with the hardcoded forward-slash suffix below -- confirmed directly
+    # that Windows itself tolerates the resulting mixed-separator path fine
+    # (os.path.exists() etc. don't care), but it's needless inconsistency
+    # in a string pytmc's own upstream `--template` parsing is already
+    # fragile around (see DESIGN.md), so there's no reason to keep it.
+    ads_ioc_location_posix = ads_ioc_location.as_posix()
     args = [
         vstools.resolve_executable("make", env),
-        f"IOC_TOP={ads_ioc_location}/",
-        f"TEMPLATE_PATH={ads_ioc_location}/iocBoot/templates",
+        f"IOC_TOP={ads_ioc_location_posix}/",
+        f"TEMPLATE_PATH={ads_ioc_location_posix}/iocBoot/templates",
     ]
     if shell:
         args.append(f"SHELL={shell}")
