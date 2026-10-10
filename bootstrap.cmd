@@ -132,6 +132,37 @@ REM block and then read later in that SAME block expands to empty (cmd.exe
 REM freezes %VAR% substitutions to their pre-block value for the whole
 REM block) -- confirmed directly, caught via testing, same gotcha fixed
 REM elsewhere in this project's .cmd files.
+REM Write-access check, shared-install mode only: a per-user install never
+REM needs elevated/special rights, and a shared install's own requirement
+REM isn't really "be an Administrator" -- it's "be able to write to
+REM ADS_DEPLOY_SHARED_DIR" specifically. Those aren't the same thing on
+REM every machine: confirmed directly, a plain developer account can have
+REM an explicit ACE granting write access to C:\ProgramData without being
+REM an Administrator at all (e.g. `icacls` showing an extra
+REM `BUILTIN\Users:(CI)(WD,AD,WEA,WA)` entry beyond the stock read-only
+REM grant), so an elevation check (`net session`) would wrongly block a
+REM user who can actually write there, and wrongly pass an Administrator
+REM whose shell lacks write access for some other reason. Testing the
+REM real thing -- creating the directory and a marker file inside it --
+REM is correct either way, and self-documenting: if this fails, writing
+REM there really does fail, whatever the underlying cause.
+IF NOT "%ADS_DEPLOY_SHARED_DIR%"=="" (
+    IF NOT EXIST "%ADS_DEPLOY_SHARED_DIR%" MKDIR "%ADS_DEPLOY_SHARED_DIR%" >nul 2>&1
+    ECHO. 2>"%ADS_DEPLOY_SHARED_DIR%\.ads-deploy-write-test" >nul 2>&1
+    IF NOT EXIST "%ADS_DEPLOY_SHARED_DIR%\.ads-deploy-write-test" (
+        echo ** FAILED: cannot write to %ADS_DEPLOY_SHARED_DIR% as the current user. **
+        echo.
+        echo Either:
+        echo   1^) Re-run this script from an elevated Command Prompt or
+        echo      PowerShell ^(right-click, "Run as Administrator"^), or
+        echo   2^) Have an administrator create %ADS_DEPLOY_SHARED_DIR% once and
+        echo      grant your account write access to it directly, then
+        echo      re-run this script as yourself.
+        EXIT /B 1
+    )
+    DEL /F /Q "%ADS_DEPLOY_SHARED_DIR%\.ads-deploy-write-test" >nul 2>&1
+)
+
 IF NOT "%ADS_DEPLOY_SHARED_DIR%"=="" (
     SET "UV_TOOL_DIR=%ADS_DEPLOY_SHARED_DIR%\uv-tools"
     SET "UV_TOOL_BIN_DIR=%ADS_DEPLOY_SHARED_DIR%\bin"
