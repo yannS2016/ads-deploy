@@ -110,7 +110,7 @@ REM C:\Users\<admin>\...\uv\cache\...). Forcing a real copy during a shared
 REM install makes every installed file's permissions inherit from
 REM ProgramData directly, independent of the cache.
 REM
-REM PIXI_NO_HARD_LINKS=1 forces the same real-copy behavior for the
+REM PIXI_NO_HARD_LINKS=true forces the same real-copy behavior for the
 REM pytmc/make toolenvs pixi provisions below -- pixi hard-links package
 REM files from its own cache (PIXI_CACHE_DIR, default under the invoking
 REM user's profile) into each environment for the identical reason uv
@@ -137,7 +137,7 @@ IF NOT "%ADS_DEPLOY_SHARED_DIR%"=="" (
     SET "UV_TOOL_BIN_DIR=%ADS_DEPLOY_SHARED_DIR%\bin"
     SET "UV_PYTHON_INSTALL_DIR=%ADS_DEPLOY_SHARED_DIR%\uv-python"
     SET "UV_LINK_MODE=copy"
-    SET "PIXI_NO_HARD_LINKS=1"
+    SET "PIXI_NO_HARD_LINKS=true"
     SET "ADS_DEPLOY_TOOLENV_ROOT=%ADS_DEPLOY_SHARED_DIR%\toolenvs"
     echo Installing to the shared location %ADS_DEPLOY_SHARED_DIR% ...
 )
