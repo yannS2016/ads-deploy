@@ -243,6 +243,29 @@ IF %ERRORLEVEL% NEQ 0 (
     EXIT /B 1
 )
 
+REM Belt-and-suspenders fix, shared-install mode only: UV_LINK_MODE=copy and
+REM PIXI_NO_HARD_LINKS=true (set above) stop package files from being
+REM hardlinked back to the installing user's own cache, but a real copy on
+REM Windows does not reliably inherit ADS_DEPLOY_SHARED_DIR's own ACL either
+REM -- confirmed directly, a freshly-installed lxml .pyd ended up with an
+REM explicit, non-inherited ACL covering only SYSTEM/Administrators/the
+REM installing user (no (I) flag, no BUILTIN\Users entry at all), so other
+REM users got "Access is denied" loading that DLL even though the
+REM PermissionError from the earlier hardlink bug was gone. Re-applying a
+REM recursive, inheritable read+execute grant for Users here, after every
+REM install step above has finished writing files, overrides whatever ACL
+REM any individual tool's Windows file-write path happened to produce,
+REM instead of relying on each one to inherit correctly on its own.
+IF NOT "%ADS_DEPLOY_SHARED_DIR%"=="" (
+    echo.
+    echo Normalizing permissions on %ADS_DEPLOY_SHARED_DIR% for all users ...
+    icacls "%ADS_DEPLOY_SHARED_DIR%" /grant *S-1-5-32-545:(OI)(CI)RX /T /C >nul
+    IF %ERRORLEVEL% NEQ 0 (
+        echo ** FAILED: could not grant Users read+execute on %ADS_DEPLOY_SHARED_DIR%. **
+        EXIT /B 1
+    )
+)
+
 echo.
 echo Fetching ads-ioc ...
 ads-deploy fetch-ads-ioc
