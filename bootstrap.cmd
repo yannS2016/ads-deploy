@@ -87,7 +87,17 @@ REM      different ADS_DEPLOY_SHARED_DIR still works (via an explicit
 REM      ADS_DEPLOY_TOOLENV_ROOT override), but loses this auto-detection,
 REM      and would need every other user to set that override themselves.
 REM
-REM This only sets UV_TOOL_DIR/UV_TOOL_BIN_DIR/ADS_DEPLOY_TOOLENV_ROOT for
+REM UV_PYTHON_INSTALL_DIR is redirected here too, not just UV_TOOL_DIR/
+REM UV_TOOL_BIN_DIR: uv's own managed Python interpreters otherwise install
+REM to the CURRENT user's profile (%APPDATA%\uv\python) regardless of
+REM UV_TOOL_DIR, so the shared tool venv would reference an interpreter
+REM path under the admin's own AppData -- inaccessible to every other user
+REM (confirmed directly: `Access is denied` reaching into another user's
+REM profile). Redirecting this alongside the others keeps the interpreter
+REM itself under the ACL-protected shared install too.
+REM
+REM This only sets UV_TOOL_DIR/UV_TOOL_BIN_DIR/UV_PYTHON_INSTALL_DIR/
+REM ADS_DEPLOY_TOOLENV_ROOT for
 REM THIS SCRIPT's own run (safe, standalone values, nothing persisted -- a
 REM future admin re-run just sets them again the same way). This script
 REM deliberately never touches the system PATH itself: `setx /M PATH ...`
@@ -105,6 +115,7 @@ REM elsewhere in this project's .cmd files.
 IF NOT "%ADS_DEPLOY_SHARED_DIR%"=="" (
     SET "UV_TOOL_DIR=%ADS_DEPLOY_SHARED_DIR%\uv-tools"
     SET "UV_TOOL_BIN_DIR=%ADS_DEPLOY_SHARED_DIR%\bin"
+    SET "UV_PYTHON_INSTALL_DIR=%ADS_DEPLOY_SHARED_DIR%\uv-python"
     SET "ADS_DEPLOY_TOOLENV_ROOT=%ADS_DEPLOY_SHARED_DIR%\toolenvs"
     echo Installing to the shared location %ADS_DEPLOY_SHARED_DIR% ...
 )
