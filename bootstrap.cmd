@@ -96,8 +96,28 @@ REM (confirmed directly: `Access is denied` reaching into another user's
 REM profile). Redirecting this alongside the others keeps the interpreter
 REM itself under the ACL-protected shared install too.
 REM
+REM UV_LINK_MODE=copy is also forced here: uv's default install strategy is
+REM to HARDLINK installed package files back to its own global cache
+REM (normally under the invoking user's profile) rather than copy them, to
+REM save disk space. A hardlink shares its underlying file's NTFS security
+REM descriptor with the original -- so even though the destination
+REM directory sits under ProgramData's own permissive ACL, individual
+REM package files inside it stayed gated by the admin's own profile ACL
+REM (confirmed directly: other users could launch ads-deploy.exe itself,
+REM but every subcommand failed importing its dependencies with
+REM "Access is denied" / PermissionError reaching into
+REM C:\Users\<admin>\...\uv\cache\...). Forcing a real copy during a shared
+REM install makes every installed file's permissions inherit from
+REM ProgramData directly, independent of the cache.
+REM
+REM PIXI_NO_HARD_LINKS=1 forces the same real-copy behavior for the
+REM pytmc/make toolenvs pixi provisions below -- pixi hard-links package
+REM files from its own cache (PIXI_CACHE_DIR, default under the invoking
+REM user's profile) into each environment for the identical reason uv
+REM does, and hits the identical cross-user permission problem.
+REM
 REM This only sets UV_TOOL_DIR/UV_TOOL_BIN_DIR/UV_PYTHON_INSTALL_DIR/
-REM ADS_DEPLOY_TOOLENV_ROOT for
+REM UV_LINK_MODE/PIXI_NO_HARD_LINKS/ADS_DEPLOY_TOOLENV_ROOT for
 REM THIS SCRIPT's own run (safe, standalone values, nothing persisted -- a
 REM future admin re-run just sets them again the same way). This script
 REM deliberately never touches the system PATH itself: `setx /M PATH ...`
@@ -116,6 +136,8 @@ IF NOT "%ADS_DEPLOY_SHARED_DIR%"=="" (
     SET "UV_TOOL_DIR=%ADS_DEPLOY_SHARED_DIR%\uv-tools"
     SET "UV_TOOL_BIN_DIR=%ADS_DEPLOY_SHARED_DIR%\bin"
     SET "UV_PYTHON_INSTALL_DIR=%ADS_DEPLOY_SHARED_DIR%\uv-python"
+    SET "UV_LINK_MODE=copy"
+    SET "PIXI_NO_HARD_LINKS=1"
     SET "ADS_DEPLOY_TOOLENV_ROOT=%ADS_DEPLOY_SHARED_DIR%\toolenvs"
     echo Installing to the shared location %ADS_DEPLOY_SHARED_DIR% ...
 )
