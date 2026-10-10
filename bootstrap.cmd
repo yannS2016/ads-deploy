@@ -148,7 +148,7 @@ REM is correct either way, and self-documenting: if this fails, writing
 REM there really does fail, whatever the underlying cause.
 IF NOT "%ADS_DEPLOY_SHARED_DIR%"=="" (
     IF NOT EXIST "%ADS_DEPLOY_SHARED_DIR%" MKDIR "%ADS_DEPLOY_SHARED_DIR%" >nul 2>&1
-    ECHO. 2>"%ADS_DEPLOY_SHARED_DIR%\.ads-deploy-write-test" >nul 2>&1
+    ECHO test >"%ADS_DEPLOY_SHARED_DIR%\.ads-deploy-write-test" 2>nul
     IF NOT EXIST "%ADS_DEPLOY_SHARED_DIR%\.ads-deploy-write-test" (
         echo ** FAILED: cannot write to %ADS_DEPLOY_SHARED_DIR% as the current user. **
         echo.
