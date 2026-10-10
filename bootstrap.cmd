@@ -259,7 +259,7 @@ REM instead of relying on each one to inherit correctly on its own.
 IF NOT "%ADS_DEPLOY_SHARED_DIR%"=="" (
     echo.
     echo Normalizing permissions on %ADS_DEPLOY_SHARED_DIR% for all users ...
-    icacls "%ADS_DEPLOY_SHARED_DIR%" /grant "*S-1-5-32-545:(OI)(CI)RX" /T /C >nul
+    icacls "%ADS_DEPLOY_SHARED_DIR%" /grant "*S-1-5-32-545:(OI)(CI)RX" /T /C >nul 2>&1
     IF %ERRORLEVEL% NEQ 0 (
         echo ** FAILED: could not grant Users read+execute on %ADS_DEPLOY_SHARED_DIR%. **
         EXIT /B 1
