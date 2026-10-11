@@ -245,24 +245,34 @@ IF %ERRORLEVEL% NEQ 0 (
 
 REM Belt-and-suspenders fix, shared-install mode only: UV_LINK_MODE=copy and
 REM PIXI_NO_HARD_LINKS=true (set above) stop package files from being
-REM hardlinked back to the installing user's own cache, but a real copy on
-REM Windows does not reliably inherit ADS_DEPLOY_SHARED_DIR's own ACL either
-REM -- confirmed directly, a freshly-installed lxml .pyd ended up with an
-REM explicit, non-inherited ACL covering only SYSTEM/Administrators/the
-REM installing user (no (I) flag, no BUILTIN\Users entry at all), so other
-REM users got "Access is denied" loading that DLL even though the
-REM PermissionError from the earlier hardlink bug was gone. Re-applying a
-REM recursive, inheritable read+execute grant for Users here, after every
-REM install step above has finished writing files, overrides whatever ACL
-REM any individual tool's Windows file-write path happened to produce,
-REM instead of relying on each one to inherit correctly on its own.
+REM hardlinked back to the installing user's own cache, but that alone does
+REM not reliably give other users access. Confirmed directly: files in a
+REM fresh shared env (lxml's .pyd, jinja2's .py, ...) ended up with an
+REM explicit, non-inherited ACL with no BUILTIN\Users entry, so other
+REM accounts got "Access is denied" / PermissionError importing them.
+REM `icacls /grant` does NOT fix that -- it only adds an entry on top of
+REM the bad ACL and, in practice, left thousands of files unreadable. What
+REM does work is taking ownership and then `icacls /reset`, which replaces
+REM every file's ACL with the one inherited from its parent folder.
+REM
+REM Only the folders that matter are reset here -- NOT the whole shared dir.
+REM toolenvs\ is skipped on purpose: `ads-deploy install` (run above) already
+REM resets each tool env itself, leaving out pytmc's tests\ tree, whose test
+REM fixtures have paths so long icacls can't open them (harmless, but slow
+REM to walk). If a user still gets "Access is denied", fall back to
+REM resetting the whole %ADS_DEPLOY_SHARED_DIR%.
+REM
+REM icacls /C exits non-zero if ANY file fails, so a non-zero exit is not
+REM treated as fatal -- the failure count is reported instead.
 IF NOT "%ADS_DEPLOY_SHARED_DIR%"=="" (
     echo.
     echo Normalizing permissions on %ADS_DEPLOY_SHARED_DIR% for all users ...
-    icacls "%ADS_DEPLOY_SHARED_DIR%" /grant "*S-1-5-32-545:(OI)(CI)RX" /T /C >nul 2>&1
-    IF %ERRORLEVEL% NEQ 0 (
-        echo ** FAILED: could not grant Users read+execute on %ADS_DEPLOY_SHARED_DIR%. **
-        EXIT /B 1
+    FOR %%D in (uv-tools uv-python bin) DO (
+        IF EXIST "%ADS_DEPLOY_SHARED_DIR%\%%D" (
+            takeown /F "%ADS_DEPLOY_SHARED_DIR%\%%D" /R /D Y >nul 2>&1
+            icacls "%ADS_DEPLOY_SHARED_DIR%\%%D" /reset /T /C >"%TEMP%\ads-deploy-icacls-%%D.log" 2>&1
+            findstr /C:"Failed processing" "%TEMP%\ads-deploy-icacls-%%D.log"
+        )
     )
 )
 

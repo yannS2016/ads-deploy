@@ -29,6 +29,7 @@ Usage::
 import argparse
 import json
 import logging
+import os
 import pathlib
 import shutil
 import subprocess
@@ -202,6 +203,81 @@ def _ensure_python3_shim(project) -> None:
         )
 
 
+def _is_shared_install(project) -> bool:
+    """
+    Whether ``project`` lives in a machine-wide install: under ProgramData, or
+    under the ADS_DEPLOY_TOOLENV_ROOT that bootstrap.cmd sets for a shared
+    install at a custom location.
+    """
+    if sys.platform != "win32":
+        return False
+    shared_roots = [os.environ.get("ProgramData", r"C:\ProgramData")]
+    override = os.environ.get("ADS_DEPLOY_TOOLENV_ROOT")
+    if override:
+        shared_roots.append(override)
+
+    resolved = pathlib.Path(project).resolve()
+    return any(resolved.is_relative_to(pathlib.Path(r).resolve()) for r in shared_roots)
+
+
+def _acl_targets(root, skip):
+    """
+    Yield ``(path, recursive)`` pairs covering everything under ``root``
+    except ``skip``. Only directories on the way down to ``skip`` are
+    visited entry by entry (reset non-recursively); every other subtree is
+    reset in one recursive call.
+    """
+    if skip is None or not skip.is_relative_to(root):
+        yield root, True
+        return
+
+    yield root, False
+    for child in root.iterdir():
+        if child == skip:
+            continue
+        if child.is_dir():
+            yield from _acl_targets(child, skip)
+        else:
+            yield child, False
+
+
+def _share_with_all_users(project) -> None:
+    """
+    Reset ACLs on a shared install so every account inherits Users access.
+
+    Files in a fresh env (lxml's .pyd, jinja2's .py, ...) can end up with an
+    explicit, non-inherited ACL with no BUILTIN\\Users entry, so other
+    accounts get "Access is denied" / PermissionError importing them.
+    `icacls /grant` only adds an entry on top of that ACL and does not fix
+    it; taking ownership and then `icacls /reset` replaces every file's ACL
+    with its parent folder's, which does. bootstrap.cmd covers the rest of
+    the shared dir; this covers each tool env installed here.
+
+    pytmc's own tests/ tree is skipped: its test fixtures have very long
+    paths icacls can't open, nobody uses them, and walking them is slow.
+    A failing icacls is only reported, never raised.
+    """
+    skip = toolenv.env_prefix(project) / "Lib" / "site-packages" / "pytmc" / "tests"
+    logger.info("Resetting ACLs on %s so all users can read it", project)
+
+    failed = []
+    for path, recursive in _acl_targets(pathlib.Path(project), skip):
+        takeown = ["takeown", "/F", str(path)] + (["/R", "/D", "Y"] if recursive else [])
+        icacls = ["icacls", str(path), "/reset"] + (["/T", "/C"] if recursive else [])
+        subprocess.run(takeown, capture_output=True)
+        if subprocess.run(icacls, capture_output=True).returncode != 0:
+            failed.append(path)
+
+    if failed:
+        logger.warning(
+            "icacls /reset failed on %d path(s) under %s (first: %s); other "
+            "accounts may get 'Access is denied'. Re-run as Administrator.",
+            len(failed),
+            project,
+            failed[0],
+        )
+
+
 def _committed_lock_path(tool: str, version: str) -> pathlib.Path:
     """
     Where a committed, strict-reproducibility `pixi.lock` for ``tool/version``
@@ -293,8 +369,14 @@ def install(
             "Resolving and installing %s/%s via pixi at %s", tool, version, project
         )
 
+    shared = _is_shared_install(project)
+    pixi_env = dict(os.environ)
+    if shared:
+        # Real copies, not hardlinks into the installing user's own cache.
+        pixi_env["PIXI_NO_HARD_LINKS"] = "true"
+
     try:
-        subprocess.run(pixi_args, check=True)
+        subprocess.run(pixi_args, check=True, env=pixi_env)
     except subprocess.CalledProcessError:
         # Don't leave a broken, pixi.toml-only directory behind on failure
         # (e.g. a typo'd version that doesn't exist upstream, or -- with
@@ -306,6 +388,8 @@ def install(
         shutil.rmtree(project, ignore_errors=True)
         raise
     _ensure_python3_shim(project)
+    if shared:
+        _share_with_all_users(project)
 
     if save_lock:
         generated_lock = project / "pixi.lock"
